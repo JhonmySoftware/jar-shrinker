@@ -23,7 +23,7 @@ public class JarMinimizer {
         try (JarFile original = new JarFile(inputJar);
              JarOutputStream jos = new JarOutputStream(new FileOutputStream(outputJar))) {
 
-            jos.setLevel(Deflater.BEST_COMPRESSION);
+            jos.setLevel(Deflater.DEFAULT_COMPRESSION);
             Enumeration<JarEntry> entries = original.entries();
             Set<String> copied = new HashSet<>();
 
@@ -33,30 +33,27 @@ public class JarMinimizer {
 
                 boolean isClass = name.endsWith(".class");
                 String className = isClass ? name.replace('/', '.').substring(0, name.length() - 6) : null;
+                long entrySize = Math.max(0, entry.getSize());
 
                 if (isClass && !reachableClasses.contains(className)) {
-                    removedBytes += entry.getSize();
-                    totalBytes += entry.getSize();
+                    removedBytes += entrySize;
+                    totalBytes += entrySize;
                     continue;
                 }
 
-                totalBytes += entry.getSize();
+                totalBytes += entrySize;
                 if (isClass) keptClasses++;
 
                 JarEntry newEntry = new JarEntry(name);
                 newEntry.setTime(entry.getTime());
                 newEntry.setMethod(ZipEntry.DEFLATED);
-                if (entry.getMethod() == ZipEntry.STORED && entry.getSize() != -1) {
-                    newEntry.setSize(entry.getSize());
-                    newEntry.setCrc(entry.getCrc());
-                }
                 jos.putNextEntry(newEntry);
 
                 byte[] data;
                 if (isClass && classBytes.containsKey(className)) {
                     data = classBytes.get(className);
                 } else {
-                    data = readEntry(original, entry);
+                    data = readEntrySafe(original, entry);
                 }
                 jos.write(data);
                 jos.closeEntry();
@@ -72,17 +69,16 @@ public class JarMinimizer {
         return new MinimizeResult(totalClasses, keptClasses, totalClasses - keptClasses, savedBytes, savedPercent);
     }
 
-    private static byte[] readEntry(JarFile jar, JarEntry entry) throws Exception {
-        byte[] buf = new byte[(int) entry.getSize()];
+    private static byte[] readEntrySafe(JarFile jar, JarEntry entry) throws Exception {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream(4096);
         try (InputStream in = jar.getInputStream(entry)) {
-            int off = 0;
-            while (off < buf.length) {
-                int read = in.read(buf, off, buf.length - off);
-                if (read < 0) break;
-                off += read;
+            byte[] tmp = new byte[8192];
+            int read;
+            while ((read = in.read(tmp)) != -1) {
+                buffer.write(tmp, 0, read);
             }
         }
-        return buf;
+        return buffer.toByteArray();
     }
 
     private static void copyMetaInf(File inputJar, JarOutputStream jos, Set<String> copied) throws Exception {
@@ -96,12 +92,8 @@ public class JarMinimizer {
                     JarEntry newEntry = new JarEntry(name);
                     newEntry.setTime(entry.getTime());
                     newEntry.setMethod(ZipEntry.DEFLATED);
-                    if (entry.getMethod() == ZipEntry.STORED && entry.getSize() != -1) {
-                        newEntry.setSize(entry.getSize());
-                        newEntry.setCrc(entry.getCrc());
-                    }
                     jos.putNextEntry(newEntry);
-                    jos.write(readEntry(original, entry));
+                    jos.write(readEntrySafe(original, entry));
                     jos.closeEntry();
                 }
             }

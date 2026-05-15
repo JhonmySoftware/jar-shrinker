@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.util.*;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.jar.Manifest;
 
 public class JarAnalyzer {
 
@@ -111,6 +112,96 @@ public class JarAnalyzer {
             }
         }
         return reachable;
+    }
+
+    public Set<String> detectEntryPoints() {
+        Set<String> entryPoints = new HashSet<>();
+        Set<String> appPackages = new HashSet<>();
+
+        for (String className : allClasses) {
+            byte[] bytes = classBytes.get(className);
+            if (bytes == null) continue;
+            detectFromClass(className, bytes, entryPoints, appPackages);
+        }
+
+        for (String pkg : appPackages) {
+            for (String cls : allClasses) {
+                if (cls.startsWith(pkg)) entryPoints.add(cls);
+            }
+        }
+
+        return entryPoints;
+    }
+
+    public Set<String> detectEntryPointsFromManifest(Manifest manifest) {
+        Set<String> result = new HashSet<>();
+        if (manifest == null) return result;
+        String mainClass = manifest.getMainAttributes().getValue("Main-Class");
+        if (mainClass != null && !mainClass.isEmpty()) {
+            mainClass = mainClass.trim().replace('/', '.');
+            if (allClasses.contains(mainClass)) result.add(mainClass);
+        }
+        return result;
+    }
+
+    private void detectFromClass(String className, byte[] bytes, Set<String> entryPoints, Set<String> appPackages) {
+        final boolean[] hasTestAnnotation = {false};
+        final boolean[] hasMainMethod = {false};
+        final String[] superName = {null};
+        final Set<String> ownPkg = new HashSet<>();
+
+        ownPkg.add(className.contains(".") ? className.substring(0, className.lastIndexOf('.')) : "");
+
+        ClassReader reader = new ClassReader(bytes);
+        reader.accept(new ClassVisitor(Opcodes.ASM9) {
+            public void visit(int version, int access, String name, String signature, String sn, String[] interfaces) {
+                superName[0] = sn;
+            }
+            public MethodVisitor visitMethod(int access, String mName, String desc, String signature, String[] exceptions) {
+                boolean isStatic = (access & Opcodes.ACC_STATIC) != 0;
+                boolean isPublic = (access & Opcodes.ACC_PUBLIC) != 0;
+                if (isPublic && isStatic && mName.equals("main") && desc.equals("([Ljava/lang/String;)V")) {
+                    hasMainMethod[0] = true;
+                }
+                return new MethodVisitor(Opcodes.ASM9) {
+                    public AnnotationVisitor visitAnnotation(String aDesc, boolean visible) {
+                        if (aDesc.equals("Lorg/testng/annotations/Test;") || aDesc.equals("Lorg/junit/Test;")) {
+                            hasTestAnnotation[0] = true;
+                        }
+                        addPackageFromDesc(aDesc, ownPkg);
+                        return null;
+                    }
+                    void addPackageFromDesc(String desc, Set<String> pkgs) {
+                        if (desc == null || desc.length() < 3) return;
+                        String internal = desc.substring(1, desc.length() - 1).replace('/', '.');
+                        int dot = internal.lastIndexOf('.');
+                        if (dot > 0) pkgs.add(internal.substring(0, dot));
+                    }
+                };
+            }
+            public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
+                if (desc.equals("Lorg/testng/annotations/Test;") || desc.equals("Lorg/junit/Test;")) {
+                    hasTestAnnotation[0] = true;
+                }
+                return null;
+            }
+        }, ClassReader.SKIP_CODE);
+
+        if (hasTestAnnotation[0] || hasMainMethod[0]) {
+            entryPoints.add(className);
+            appPackages.addAll(ownPkg);
+        }
+    }
+
+    public String[] getTopLevelPackages() {
+        Set<String> pkgs = new TreeSet<>();
+        for (String cls : allClasses) {
+            int dot = cls.indexOf('.');
+            if (dot > 0) {
+                pkgs.add(cls.substring(0, cls.indexOf('.', dot + 1) > 0 ? cls.indexOf('.', dot + 1) : cls.length()));
+            }
+        }
+        return pkgs.toArray(new String[0]);
     }
 
     public Set<String> getAllClasses() { return allClasses; }

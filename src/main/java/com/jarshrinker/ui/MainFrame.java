@@ -31,10 +31,12 @@ public class MainFrame extends JFrame {
     private static final Font FONT_BUTTON = new Font("Segoe UI", Font.BOLD, 15);
 
     private JLabel dropLabel, fileLabel, sizeLabel, statusLabel;
-    private JTextField entryField;
-    private JButton selectBtn, compressBtn;
+    private JTextArea entryArea;
+    private JTextField entryFieldSimple;
+    private JButton selectBtn, compressBtn, detectBtn;
     private JProgressBar progressBar;
     private File selectedJar;
+    private JarAnalyzer cachedAnalyzer;
 
     public MainFrame() {
         super("Optimizador de JARs");
@@ -179,25 +181,41 @@ public class MainFrame extends JFrame {
         c.fill = GridBagConstraints.HORIZONTAL;
         c.insets = new Insets(2, 0, 2, 0);
 
-        JLabel lbl = new JLabel("Paquetes ra\u00EDz a conservar (separados por coma):");
+        JLabel lbl = new JLabel("Paquetes a conservar (deteccion automatica al seleccionar JAR):");
         lbl.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         lbl.setForeground(TEXT_DARK);
 
-        entryField = new JTextField("org.example.tests");
-        entryField.setFont(FONT_LABEL);
-        entryField.setBorder(BorderFactory.createCompoundBorder(
+        JPanel row = new JPanel(new BorderLayout(5, 0));
+        row.setBackground(WHITE);
+
+        entryFieldSimple = new JTextField();
+        entryFieldSimple.setFont(FONT_LABEL);
+        entryFieldSimple.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(0xCC, 0xCC, 0xCC)),
                 new EmptyBorder(6, 8, 6, 8)
         ));
 
-        JLabel hint = new JLabel("Ej: org.example.tests, org.testng, com.misflujos");
+        detectBtn = new JButton("Detectar");
+        detectBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        detectBtn.setBackground(ACCENT_RED);
+        detectBtn.setForeground(WHITE);
+        detectBtn.setFocusPainted(false);
+        detectBtn.setBorder(new EmptyBorder(6, 12, 6, 12));
+        detectBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        detectBtn.setEnabled(false);
+        detectBtn.addActionListener(e -> detectPackages());
+
+        row.add(entryFieldSimple, BorderLayout.CENTER);
+        row.add(detectBtn, BorderLayout.EAST);
+
+        JLabel hint = new JLabel("Separados por coma. Si queda vac\u00EDO se usa detecci\u00F3n autom\u00E1tica.");
         hint.setFont(new Font("Segoe UI", Font.PLAIN, 11));
         hint.setForeground(TEXT_GRAY);
 
         c.gridx = 0; c.gridy = 0; c.weightx = 1;
         p.add(lbl, c);
         c.gridy = 1;
-        p.add(entryField, c);
+        p.add(row, c);
         c.gridy = 2; c.insets = new Insets(1, 0, 0, 0);
         p.add(hint, c);
 
@@ -282,12 +300,67 @@ public class MainFrame extends JFrame {
 
     private void selectJar(File f) {
         selectedJar = f;
+        cachedAnalyzer = null;
         String size = formatSize(f.length());
         fileLabel.setText("JAR: " + f.getName());
         sizeLabel.setText("Tama\u00F1o original: " + size);
         compressBtn.setEnabled(true);
-        statusLabel.setText(" ");
+        detectBtn.setEnabled(true);
+        entryFieldSimple.setText("");
+        statusLabel.setText("Haz clic en Detectar o escribe los paquetes manualmente");
         progressBar.setVisible(false);
+    }
+
+    private void detectPackages() {
+        if (selectedJar == null) return;
+
+        detectBtn.setEnabled(false);
+        statusLabel.setText("Detectando entry points...");
+
+        new SwingWorker<String, Void>() {
+            protected String doInBackground() {
+                try {
+                    JarAnalyzer analyzer = new JarAnalyzer();
+                    try (JarFile jf = new JarFile(selectedJar)) {
+                        analyzer.loadJar(jf);
+                    }
+                    cachedAnalyzer = analyzer;
+
+                    Set<String> detected = analyzer.detectEntryPoints();
+                    if (detected.isEmpty()) {
+                        return "Deteccion automatica no encontro @Test ni main(). Revisa los paquetes.";
+                    }
+
+                    Set<String> pkgs = new TreeSet<>();
+                    for (String cls : detected) {
+                        int dot = cls.lastIndexOf('.');
+                        if (dot > 0) pkgs.add(cls.substring(0, dot));
+                    }
+
+                    return String.join(", ", pkgs);
+                } catch (Exception e) {
+                    return "Error: " + e.getMessage();
+                }
+            }
+
+            protected void done() {
+                detectBtn.setEnabled(true);
+                try {
+                    String result = get();
+                    if (result.startsWith("Error")) {
+                        statusLabel.setText(result);
+                        JOptionPane.showMessageDialog(MainFrame.this, result, "Error", JOptionPane.ERROR_MESSAGE);
+                    } else if (result.startsWith("Deteccion")) {
+                        statusLabel.setText(result);
+                    } else {
+                        entryFieldSimple.setText(result);
+                        statusLabel.setText("Detectados: " + result);
+                    }
+                } catch (Exception e) {
+                    statusLabel.setText("Error en deteccion");
+                }
+            }
+        }.execute();
     }
 
     private void compress() {
@@ -299,10 +372,11 @@ public class MainFrame extends JFrame {
         if (fc.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) return;
 
         File output = fc.getSelectedFile();
-        String entries = entryField.getText().trim();
+        String entries = entryFieldSimple.getText().trim();
 
         compressBtn.setEnabled(false);
         selectBtn.setEnabled(false);
+        detectBtn.setEnabled(false);
         progressBar.setVisible(true);
         progressBar.setValue(5);
         statusLabel.setText("Analizando JAR...");
@@ -314,9 +388,14 @@ public class MainFrame extends JFrame {
             protected Void doInBackground() {
                 try {
                     publish(10);
-                    JarAnalyzer analyzer = new JarAnalyzer();
-                    try (JarFile jf = new JarFile(selectedJar)) {
-                        analyzer.loadJar(jf);
+                    JarAnalyzer analyzer;
+                    if (cachedAnalyzer != null) {
+                        analyzer = cachedAnalyzer;
+                    } else {
+                        analyzer = new JarAnalyzer();
+                        try (JarFile jf = new JarFile(selectedJar)) {
+                            analyzer.loadJar(jf);
+                        }
                     }
 
                     publish(40);
@@ -331,17 +410,20 @@ public class MainFrame extends JFrame {
                                 if (cls.startsWith(p)) entryPoints.add(cls);
                             }
                         }
-                    } else {
-                        entryPoints.addAll(analyzer.getAllClasses());
                     }
 
                     if (entryPoints.isEmpty()) {
-                        error = "No se encontraron clases para los paquetes especificados.";
+                        statusLabel.setText("Usando deteccion automatica...");
+                        entryPoints = analyzer.detectEntryPoints();
+                    }
+
+                    if (entryPoints.isEmpty()) {
+                        error = "No se detectaron entry points. Especifica los paquetes manualmente.";
                         return null;
                     }
 
                     publish(60);
-                    statusLabel.setText("Calculando clases alcanzables...");
+                    statusLabel.setText("Calculando clases alcanzables (" + entryPoints.size() + " entry points)...");
                     Set<String> reachable = analyzer.findReachableClasses(entryPoints);
 
                     publish(80);
@@ -364,11 +446,12 @@ public class MainFrame extends JFrame {
             protected void done() {
                 compressBtn.setEnabled(true);
                 selectBtn.setEnabled(true);
+                detectBtn.setEnabled(true);
 
                 if (error != null) {
                     statusLabel.setText("Error: " + error);
                     JOptionPane.showMessageDialog(MainFrame.this,
-                            "Ocurri\u00F3 un error:\n" + error,
+                            "Ocurrio un error:\n" + error,
                             "Error", JOptionPane.ERROR_MESSAGE);
                     return;
                 }
@@ -391,8 +474,8 @@ public class MainFrame extends JFrame {
                         "JAR original: %s\nJAR optimizado: %s\n\n" +
                         "Clases totales: %,d\nClases eliminadas: %,d (%.0f%%)\n" +
                         "Clases conservadas: %,d\n\n" +
-                        "Tama\u00F1o original: %s\n" +
-                        "Tama\u00F1o final: %s\n" +
+                        "Tamano original: %s\n" +
+                        "Tamano final: %s\n" +
                         "\u2713 Ahorro total: %s (%d%%)",
                         selectedJar.getName(), output.getName(),
                         result.totalClasses, result.removedClasses,
@@ -402,7 +485,7 @@ public class MainFrame extends JFrame {
                 );
 
                 JOptionPane.showMessageDialog(MainFrame.this, msg,
-                        "Optimizaci\u00F3n completada", JOptionPane.INFORMATION_MESSAGE);
+                        "Optimizacion completada", JOptionPane.INFORMATION_MESSAGE);
             }
         }.execute();
     }

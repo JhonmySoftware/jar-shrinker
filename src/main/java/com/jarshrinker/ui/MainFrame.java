@@ -419,11 +419,11 @@ public class MainFrame extends JFrame {
         searchField.setEnabled(false);
         searchField.setForeground(TEXT_GRAY);
         searchField.setText("Buscar paquete...");
-        statusLabel.setText("Analizando JAR...");
+        statusLabel.setText("Analizando dependencias...");
 
         new SwingWorker<Void, Void>() {
             private String[] packages;
-            private Set<String> detected;
+            private Set<String> reachablePkgs = Collections.emptySet();
 
             protected Void doInBackground() {
                 try {
@@ -431,19 +431,11 @@ public class MainFrame extends JFrame {
                     try (JarFile jf = new JarFile(selectedJar)) {
                         cachedAnalyzer.loadJar(jf);
                     }
-                    packages = cachedAnalyzer.getTopLevelPackages();
-                    detected = cachedAnalyzer.detectEntryPoints();
-
-                    Set<String> pkgSet = new TreeSet<>();
-                    for (String cls : detected) {
-                        int dot = cls.lastIndexOf('.');
-                        if (dot > 0) pkgSet.add(cls.substring(0, cls.indexOf('.', dot + 1) > 0 ? cls.indexOf('.', dot + 1) : cls.length()));
-                        else if (dot > 0) pkgSet.add(cls.substring(0, dot));
-                    }
-                    detectedPkgs.addAll(pkgSet);
+                    packages = cachedAnalyzer.getPackages();
+                    Set<String> entryPoints = cachedAnalyzer.detectEntryPoints();
+                    reachablePkgs = cachedAnalyzer.getReachablePackages(entryPoints);
                 } catch (Exception e) {
                     packages = new String[]{"Error: " + e.getMessage()};
-                    detected = Collections.emptySet();
                 }
                 return null;
             }
@@ -458,15 +450,16 @@ public class MainFrame extends JFrame {
                 allPackages = new ArrayList<>(Arrays.asList(packages));
                 for (String pkg : allPackages) {
                     listModel.addElement(pkg);
-                    if (detectedPkgs.contains(pkg)) {
+                    if (reachablePkgs.contains(pkg)) {
                         selectedPackages.add(pkg);
+                        detectedPkgs.add(pkg);
                     }
                 }
                 searchField.setEnabled(true);
                 toggleBtn.setEnabled(true);
                 packageList.repaint();
                 updateCount();
-                statusLabel.setText("Detectados " + detectedPkgs.size() + " paquetes con entry points. Revisa y ajusta las selecciones.");
+                statusLabel.setText("Pre-seleccionados " + detectedPkgs.size() + " paquetes con codigo alcanzable. Lista completa: " + allPackages.size() + " paquetes.");
             }
         }.execute();
     }

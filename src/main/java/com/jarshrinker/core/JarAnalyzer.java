@@ -193,6 +193,27 @@ public class JarAnalyzer {
         }
     }
 
+    public String[] getPackages() {
+        Set<String> pkgs = new TreeSet<>();
+        for (String cls : allClasses) {
+            int dot = cls.lastIndexOf('.');
+            if (dot > 0) pkgs.add(cls.substring(0, dot));
+            else pkgs.add("(default)");
+        }
+        return pkgs.toArray(new String[0]);
+    }
+
+    public Set<String> getReachablePackages(Set<String> entryPoints) {
+        Set<String> reachable = findReachableClasses(entryPoints);
+        Set<String> pkgs = new TreeSet<>();
+        for (String cls : reachable) {
+            int dot = cls.lastIndexOf('.');
+            if (dot > 0) pkgs.add(cls.substring(0, dot));
+            else pkgs.add("(default)");
+        }
+        return pkgs;
+    }
+
     public String[] getTopLevelPackages() {
         Set<String> pkgs = new TreeSet<>();
         for (String cls : allClasses) {

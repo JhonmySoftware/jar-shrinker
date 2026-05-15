@@ -1,4 +1,4 @@
-package com.davivienda.shrinker.core;
+package com.jarshrinker.core;
 
 import java.io.*;
 import java.util.*;

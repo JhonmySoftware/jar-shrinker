@@ -1,8 +1,8 @@
-package com.davivienda.shrinker.ui;
+package com.jarshrinker.ui;
 
-import com.davivienda.shrinker.core.JarAnalyzer;
-import com.davivienda.shrinker.core.JarMinimizer;
-import com.davivienda.shrinker.core.JarMinimizer.MinimizeResult;
+import com.jarshrinker.core.JarAnalyzer;
+import com.jarshrinker.core.JarMinimizer;
+import com.jarshrinker.core.JarMinimizer.MinimizeResult;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -20,8 +20,8 @@ import java.util.jar.JarFile;
 
 public class MainFrame extends JFrame {
 
-    private static final Color DAVIVIENDA_RED = new Color(0xCC, 0x00, 0x33);
-    private static final Color DAVIVIENDA_DARK = new Color(0x99, 0x00, 0x26);
+    private static final Color ACCENT_RED = new Color(0xCC, 0x00, 0x33);
+    private static final Color ACCENT_DARK = new Color(0x99, 0x00, 0x26);
     private static final Color BG_LIGHT = new Color(0xF5, 0xF5, 0xF5);
     private static final Color WHITE = Color.WHITE;
     private static final Color TEXT_DARK = new Color(0x33, 0x33, 0x33);
@@ -37,7 +37,7 @@ public class MainFrame extends JFrame {
     private File selectedJar;
 
     public MainFrame() {
-        super("Davivienda - Optimizador de JARs");
+        super("Optimizador de JARs");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setSize(600, 520);
         setLocationRelativeTo(null);
@@ -67,11 +67,11 @@ public class MainFrame extends JFrame {
 
     private JPanel createHeader() {
         JPanel header = new JPanel(new BorderLayout());
-        header.setBackground(DAVIVIENDA_RED);
+        header.setBackground(ACCENT_RED);
         header.setPreferredSize(new Dimension(600, 65));
 
-        JLabel logo = new JLabel("DAVIVIENDA", JLabel.CENTER);
-        logo.setFont(new Font("Segoe UI", Font.BOLD, 26));
+        JLabel logo = new JLabel("JAR OPTIMIZER", JLabel.CENTER);
+        logo.setFont(new Font("Segoe UI", Font.BOLD, 24));
         logo.setForeground(WHITE);
         logo.setBorder(new EmptyBorder(5, 0, 0, 0));
 
@@ -80,7 +80,7 @@ public class MainFrame extends JFrame {
         sub.setForeground(new Color(0xFF, 0xCC, 0xCC));
 
         JPanel inner = new JPanel(new BorderLayout());
-        inner.setBackground(DAVIVIENDA_RED);
+        inner.setBackground(ACCENT_RED);
         inner.add(logo, BorderLayout.CENTER);
         inner.add(sub, BorderLayout.SOUTH);
         header.add(inner, BorderLayout.CENTER);
@@ -115,7 +115,7 @@ public class MainFrame extends JFrame {
         JPanel zone = new JPanel(new GridBagLayout());
         zone.setBackground(new Color(0xFF, 0xF0, 0xF0));
         zone.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(DAVIVIENDA_RED, 2, true),
+                BorderFactory.createLineBorder(ACCENT_RED, 2, true),
                 new EmptyBorder(25, 20, 25, 20)
         ));
         zone.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -126,7 +126,7 @@ public class MainFrame extends JFrame {
 
         selectBtn = new JButton("Seleccionar JAR");
         selectBtn.setFont(FONT_BUTTON);
-        selectBtn.setBackground(DAVIVIENDA_RED);
+        selectBtn.setBackground(ACCENT_RED);
         selectBtn.setForeground(WHITE);
         selectBtn.setFocusPainted(false);
         selectBtn.setBorder(new EmptyBorder(10, 25, 10, 25));
@@ -213,7 +213,7 @@ public class MainFrame extends JFrame {
 
         progressBar = new JProgressBar(0, 100);
         progressBar.setStringPainted(true);
-        progressBar.setForeground(DAVIVIENDA_RED);
+        progressBar.setForeground(ACCENT_RED);
         progressBar.setBackground(new Color(0xFF, 0xE0, 0xE0));
         progressBar.setBorder(BorderFactory.createEmptyBorder(2, 0, 2, 0));
         progressBar.setPreferredSize(new Dimension(0, 25));
@@ -238,7 +238,7 @@ public class MainFrame extends JFrame {
 
         compressBtn = new JButton("COMPRIMIR Y EXPORTAR");
         compressBtn.setFont(FONT_BUTTON);
-        compressBtn.setBackground(DAVIVIENDA_RED);
+        compressBtn.setBackground(ACCENT_RED);
         compressBtn.setForeground(WHITE);
         compressBtn.setFocusPainted(false);
         compressBtn.setBorder(new EmptyBorder(12, 30, 12, 30));
@@ -410,11 +410,11 @@ public class MainFrame extends JFrame {
     private Image createIcon() {
         BufferedImage img = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = img.createGraphics();
-        g.setColor(DAVIVIENDA_RED);
+        g.setColor(ACCENT_RED);
         g.fillRect(0, 0, 16, 16);
         g.setColor(WHITE);
         g.setFont(new Font("Arial", Font.BOLD, 10));
-        g.drawString("DV", 2, 12);
+        g.drawString("JS", 2, 12);
         g.dispose();
         return img;
     }

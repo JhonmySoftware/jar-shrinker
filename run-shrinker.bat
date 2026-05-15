@@ -1,9 +1,9 @@
 @echo off
-title Davivienda - Optimizador de JARs v1.0
+title JAR Optimizer v1.0
 color 0C
 
 echo ============================================
-echo   DAVIVIENDA
+echo   JAR OPTIMIZER
 echo   Optimizador Inteligente de JARs
 echo ============================================
 echo.

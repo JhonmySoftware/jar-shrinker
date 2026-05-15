@@ -13,6 +13,8 @@ import java.awt.datatransfer.DataFlavor;
 import java.awt.dnd.*;
 import java.awt.event.*;
 import java.io.File;
+import java.io.InputStream;
+import java.util.jar.JarEntry;
 import java.text.DecimalFormat;
 import java.util.*;
 import java.util.List;
@@ -468,7 +470,34 @@ public class MainFrame extends JFrame {
                     }
                     if (!entryPoints.isEmpty()) {
                         autoEntryPoints.addAll(entryPoints);
-                        reachablePkgs = cachedAnalyzer.getReachablePackages(entryPoints);
+                        Set<String> reachableClasses = cachedAnalyzer.findReachableClasses(entryPoints);
+
+                        try (JarFile jf = new JarFile(selectedJar)) {
+                            Enumeration<JarEntry> ents = jf.entries();
+                            while (ents.hasMoreElements()) {
+                                JarEntry e = ents.nextElement();
+                                String en = e.getName();
+                                if (en.startsWith("META-INF/services/") && !e.isDirectory()) {
+                                    try (InputStream in = jf.getInputStream(e)) {
+                                        java.util.Scanner sc = new java.util.Scanner(in).useDelimiter("\\A");
+                                        String content = sc.hasNext() ? sc.next() : "";
+                                        for (String line : content.split("\\r?\\n")) {
+                                            line = line.trim();
+                                            if (!line.isEmpty() && !line.startsWith("#")) {
+                                                reachableClasses.add(line);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (Exception ignored) {}
+
+                        reachablePkgs = new HashSet<>();
+                        for (String cls : reachableClasses) {
+                            int dot = cls.lastIndexOf('.');
+                            if (dot > 0) reachablePkgs.add(cls.substring(0, dot));
+                            else reachablePkgs.add("(default)");
+                        }
                     }
                 } catch (Exception e) {
                     error = e.getMessage();
@@ -575,6 +604,7 @@ public class MainFrame extends JFrame {
                         analyzer = new JarAnalyzer();
                         try (JarFile jf = new JarFile(selectedJar)) { analyzer.loadJar(jf); }
                     }
+                    Set<String> allClasses = analyzer.getAllClasses();
 
                     publish(20);
                     publish(0);
@@ -596,7 +626,7 @@ public class MainFrame extends JFrame {
                             }
                         }
                         if (!hasAuto) {
-                            for (String cls : analyzer.getAllClasses()) {
+                            for (String cls : allClasses) {
                                 if (cls.startsWith(pkg)) entryPoints.add(cls);
                             }
                         }
@@ -611,10 +641,44 @@ public class MainFrame extends JFrame {
                     publish(0);
                     Set<String> reachable = analyzer.findReachableClasses(entryPoints);
 
+                    Set<String> toKeep = new HashSet<>();
+                    for (String cls : reachable) {
+                        String pkg = cls.contains(".") ? cls.substring(0, cls.lastIndexOf('.')) : "";
+                        for (String c : allClasses) {
+                            if (c.startsWith(pkg + ".") || c.equals(pkg)) {
+                                toKeep.add(c);
+                            }
+                        }
+                    }
+
+                    try (JarFile jf = new JarFile(selectedJar)) {
+                        Enumeration<JarEntry> entries = jf.entries();
+                        while (entries.hasMoreElements()) {
+                            JarEntry entry = entries.nextElement();
+                            String en = entry.getName();
+                            if (en.startsWith("META-INF/services/") && !entry.isDirectory()) {
+                                try (InputStream in = jf.getInputStream(entry)) {
+                                    java.util.Scanner s = new java.util.Scanner(in).useDelimiter("\\A");
+                                    String content = s.hasNext() ? s.next() : "";
+                                    for (String line : content.split("\\r?\\n")) {
+                                        line = line.trim();
+                                        if (!line.isEmpty() && !line.startsWith("#")) {
+                                            String implClass = line;
+                                            String pkg = implClass.contains(".") ? implClass.substring(0, implClass.lastIndexOf('.')) : "";
+                                            for (String c : allClasses) {
+                                                if (c.startsWith(pkg + ".") || c.equals(pkg)) toKeep.add(c);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {}
+
                     publish(70);
                     publish(0);
-                    result = JarMinimizer.minimize(selectedJar, output, reachable,
-                            analyzer.getAllClasses(), analyzer.getClassBytes());
+                    result = JarMinimizer.minimize(selectedJar, output, toKeep,
+                            allClasses, analyzer.getClassBytes());
 
                     publish(100);
                 } catch (Exception e) {

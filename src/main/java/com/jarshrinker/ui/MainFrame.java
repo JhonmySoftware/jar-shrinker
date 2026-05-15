@@ -21,27 +21,27 @@ import java.util.jar.JarFile;
 public class MainFrame extends JFrame {
 
     private static final Color ACCENT_RED = new Color(0xCC, 0x00, 0x33);
-    private static final Color ACCENT_DARK = new Color(0x99, 0x00, 0x26);
     private static final Color BG_LIGHT = new Color(0xF5, 0xF5, 0xF5);
     private static final Color WHITE = Color.WHITE;
     private static final Color TEXT_DARK = new Color(0x33, 0x33, 0x33);
     private static final Color TEXT_GRAY = new Color(0x66, 0x66, 0x66);
-    private static final Font FONT_TITLE = new Font("Segoe UI", Font.BOLD, 20);
-    private static final Font FONT_LABEL = new Font("Segoe UI", Font.PLAIN, 14);
+    private static final Color HIGHLIGHT = new Color(0xFF, 0xEB, 0xEB);
     private static final Font FONT_BUTTON = new Font("Segoe UI", Font.BOLD, 15);
 
-    private JLabel dropLabel, fileLabel, sizeLabel, statusLabel;
-    private JTextArea entryArea;
-    private JTextField entryFieldSimple;
-    private JButton selectBtn, compressBtn, detectBtn;
+    private JLabel dropLabel, fileLabel, sizeLabel, statusLabel, countLabel;
+    private JList<String> packageList;
+    private DefaultListModel<String> listModel;
+    private JButton selectBtn, compressBtn, detectBtn, toggleBtn;
     private JProgressBar progressBar;
     private File selectedJar;
     private JarAnalyzer cachedAnalyzer;
+    private final Set<String> selectedPackages = new HashSet<>();
+    private final Set<String> detectedPkgs = new HashSet<>();
 
     public MainFrame() {
-        super("Optimizador de JARs");
+        super("JAR Optimizer");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
-        setSize(600, 520);
+        setSize(640, 700);
         setLocationRelativeTo(null);
         setResizable(false);
         setIconImage(createIcon());
@@ -52,25 +52,22 @@ public class MainFrame extends JFrame {
 
         initUI();
         setupDragDrop();
-
         setVisible(true);
     }
 
     private void initUI() {
         JPanel main = new JPanel(new BorderLayout());
         main.setBackground(BG_LIGHT);
-
         main.add(createHeader(), BorderLayout.NORTH);
         main.add(createBody(), BorderLayout.CENTER);
         main.add(createFooter(), BorderLayout.SOUTH);
-
         add(main);
     }
 
     private JPanel createHeader() {
         JPanel header = new JPanel(new BorderLayout());
         header.setBackground(ACCENT_RED);
-        header.setPreferredSize(new Dimension(600, 65));
+        header.setPreferredSize(new Dimension(640, 65));
 
         JLabel logo = new JLabel("JAR OPTIMIZER", JLabel.CENTER);
         logo.setFont(new Font("Segoe UI", Font.BOLD, 24));
@@ -86,17 +83,16 @@ public class MainFrame extends JFrame {
         inner.add(logo, BorderLayout.CENTER);
         inner.add(sub, BorderLayout.SOUTH);
         header.add(inner, BorderLayout.CENTER);
-
         return header;
     }
 
     private JPanel createBody() {
         JPanel body = new JPanel(new GridBagLayout());
         body.setBackground(WHITE);
-        body.setBorder(new EmptyBorder(20, 25, 10, 25));
+        body.setBorder(new EmptyBorder(15, 20, 5, 20));
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.insets = new Insets(5, 0, 5, 0);
+        gbc.insets = new Insets(3, 0, 3, 0);
 
         gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 1;
         body.add(createDropZone(), gbc);
@@ -104,10 +100,10 @@ public class MainFrame extends JFrame {
         gbc.gridy = 1;
         body.add(createInfoPanel(), gbc);
 
-        gbc.gridy = 2;
-        body.add(createEntryPanel(), gbc);
+        gbc.gridy = 2; gbc.weighty = 1; gbc.fill = GridBagConstraints.BOTH;
+        body.add(createListPanel(), gbc);
 
-        gbc.gridy = 3; gbc.insets = new Insets(10, 0, 0, 0);
+        gbc.gridy = 3; gbc.weighty = 0; gbc.fill = GridBagConstraints.HORIZONTAL;
         body.add(createProgressPanel(), gbc);
 
         return body;
@@ -118,12 +114,11 @@ public class MainFrame extends JFrame {
         zone.setBackground(new Color(0xFF, 0xF0, 0xF0));
         zone.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(ACCENT_RED, 2, true),
-                new EmptyBorder(25, 20, 25, 20)
-        ));
+                new EmptyBorder(20, 20, 20, 20)));
         zone.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
         dropLabel = new JLabel("Arrastra tu JAR aqu\u00ED o haz clic para seleccionarlo", JLabel.CENTER);
-        dropLabel.setFont(FONT_LABEL);
+        dropLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         dropLabel.setForeground(TEXT_GRAY);
 
         selectBtn = new JButton("Seleccionar JAR");
@@ -138,7 +133,7 @@ public class MainFrame extends JFrame {
         JPanel inner = new JPanel(new GridBagLayout());
         inner.setBackground(new Color(0xFF, 0xF0, 0xF0));
         GridBagConstraints c = new GridBagConstraints();
-        c.gridx = 0; c.gridy = 0; c.insets = new Insets(0, 0, 10, 0);
+        c.gridx = 0; c.gridy = 0; c.insets = new Insets(0, 0, 8, 0);
         inner.add(dropLabel, c);
         c.gridy = 1;
         inner.add(selectBtn, c);
@@ -147,7 +142,6 @@ public class MainFrame extends JFrame {
         zone.addMouseListener(new MouseAdapter() {
             public void mouseClicked(MouseEvent e) { selectJar(); }
         });
-
         return zone;
     }
 
@@ -159,7 +153,7 @@ public class MainFrame extends JFrame {
         c.insets = new Insets(2, 0, 2, 0);
 
         fileLabel = new JLabel(" ");
-        fileLabel.setFont(FONT_LABEL);
+        fileLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         fileLabel.setForeground(TEXT_DARK);
 
         sizeLabel = new JLabel(" ");
@@ -170,55 +164,75 @@ public class MainFrame extends JFrame {
         p.add(fileLabel, c);
         c.gridy = 1;
         p.add(sizeLabel, c);
-
         return p;
     }
 
-    private JPanel createEntryPanel() {
-        JPanel p = new JPanel(new GridBagLayout());
+    private JPanel createListPanel() {
+        JPanel p = new JPanel(new BorderLayout(0, 5));
         p.setBackground(WHITE);
-        GridBagConstraints c = new GridBagConstraints();
-        c.fill = GridBagConstraints.HORIZONTAL;
-        c.insets = new Insets(2, 0, 2, 0);
+        p.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(new Color(0xDD, 0xDD, 0xDD)),
+                "Paquetes encontrados en el JAR (marca los que quieres conservar)",
+                javax.swing.border.TitledBorder.LEFT,
+                javax.swing.border.TitledBorder.TOP,
+                new Font("Segoe UI", Font.PLAIN, 12), TEXT_DARK));
 
-        JLabel lbl = new JLabel("Paquetes a conservar (deteccion automatica al seleccionar JAR):");
-        lbl.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        lbl.setForeground(TEXT_DARK);
-
-        JPanel row = new JPanel(new BorderLayout(5, 0));
-        row.setBackground(WHITE);
-
-        entryFieldSimple = new JTextField();
-        entryFieldSimple.setFont(FONT_LABEL);
-        entryFieldSimple.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(0xCC, 0xCC, 0xCC)),
-                new EmptyBorder(6, 8, 6, 8)
-        ));
+        JPanel topBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        topBar.setBackground(WHITE);
 
         detectBtn = new JButton("Detectar");
         detectBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
         detectBtn.setBackground(ACCENT_RED);
         detectBtn.setForeground(WHITE);
         detectBtn.setFocusPainted(false);
-        detectBtn.setBorder(new EmptyBorder(6, 12, 6, 12));
         detectBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         detectBtn.setEnabled(false);
         detectBtn.addActionListener(e -> detectPackages());
 
-        row.add(entryFieldSimple, BorderLayout.CENTER);
-        row.add(detectBtn, BorderLayout.EAST);
+        toggleBtn = new JButton("Seleccionar detectados");
+        toggleBtn.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        toggleBtn.setBackground(new Color(0x55, 0x55, 0x55));
+        toggleBtn.setForeground(WHITE);
+        toggleBtn.setFocusPainted(false);
+        toggleBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        toggleBtn.setEnabled(false);
+        toggleBtn.addActionListener(e -> toggleSelection());
 
-        JLabel hint = new JLabel("Separados por coma. Si queda vac\u00EDO se usa detecci\u00F3n autom\u00E1tica.");
-        hint.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-        hint.setForeground(TEXT_GRAY);
+        countLabel = new JLabel("Seleccionados: 0");
+        countLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        countLabel.setForeground(TEXT_GRAY);
 
-        c.gridx = 0; c.gridy = 0; c.weightx = 1;
-        p.add(lbl, c);
-        c.gridy = 1;
-        p.add(row, c);
-        c.gridy = 2; c.insets = new Insets(1, 0, 0, 0);
-        p.add(hint, c);
+        topBar.add(detectBtn);
+        topBar.add(toggleBtn);
+        topBar.add(Box.createHorizontalStrut(10));
+        topBar.add(countLabel);
 
+        listModel = new DefaultListModel<>();
+        packageList = new JList<>(listModel);
+        packageList.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        packageList.setCellRenderer(new CheckboxRenderer());
+        packageList.setBackground(WHITE);
+        packageList.setFixedCellHeight(28);
+        packageList.addMouseListener(new MouseAdapter() {
+            public void mouseClicked(MouseEvent e) {
+                int idx = packageList.locationToIndex(e.getPoint());
+                if (idx >= 0) {
+                    String pkg = listModel.get(idx);
+                    boolean selected = selectedPackages.contains(pkg);
+                    if (selected) selectedPackages.remove(pkg);
+                    else selectedPackages.add(pkg);
+                    packageList.repaint();
+                    updateCount();
+                }
+            }
+        });
+
+        JScrollPane scroll = new JScrollPane(packageList);
+        scroll.setBorder(BorderFactory.createLineBorder(new Color(0xDD, 0xDD, 0xDD)));
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
+
+        p.add(topBar, BorderLayout.NORTH);
+        p.add(scroll, BorderLayout.CENTER);
         return p;
     }
 
@@ -245,14 +259,13 @@ public class MainFrame extends JFrame {
         p.add(progressBar, c);
         c.gridy = 1;
         p.add(statusLabel, c);
-
         return p;
     }
 
     private JPanel createFooter() {
         JPanel footer = new JPanel(new BorderLayout());
         footer.setBackground(WHITE);
-        footer.setBorder(new EmptyBorder(0, 25, 15, 25));
+        footer.setBorder(new EmptyBorder(0, 20, 15, 20));
 
         compressBtn = new JButton("COMPRIMIR Y EXPORTAR");
         compressBtn.setFont(FONT_BUTTON);
@@ -268,8 +281,24 @@ public class MainFrame extends JFrame {
         btnPanel.setBackground(WHITE);
         btnPanel.add(compressBtn);
         footer.add(btnPanel, BorderLayout.CENTER);
-
         return footer;
+    }
+
+    private void updateCount() {
+        countLabel.setText("Seleccionados: " + selectedPackages.size());
+    }
+
+    private void toggleSelection() {
+        boolean allSelected = selectedPackages.size() == listModel.size();
+        if (allSelected || selectedPackages.isEmpty()) {
+            selectedPackages.clear();
+            selectedPackages.addAll(detectedPkgs);
+        } else {
+            selectedPackages.clear();
+            selectedPackages.addAll(detectedPkgs);
+        }
+        packageList.repaint();
+        updateCount();
     }
 
     private void setupDragDrop() {
@@ -301,13 +330,17 @@ public class MainFrame extends JFrame {
     private void selectJar(File f) {
         selectedJar = f;
         cachedAnalyzer = null;
+        selectedPackages.clear();
+        detectedPkgs.clear();
+        listModel.clear();
         String size = formatSize(f.length());
         fileLabel.setText("JAR: " + f.getName());
         sizeLabel.setText("Tama\u00F1o original: " + size);
-        compressBtn.setEnabled(true);
+        compressBtn.setEnabled(false);
         detectBtn.setEnabled(true);
-        entryFieldSimple.setText("");
-        statusLabel.setText("Haz clic en Detectar o escribe los paquetes manualmente");
+        toggleBtn.setEnabled(false);
+        updateCount();
+        statusLabel.setText("Haz clic en \"Detectar\" para analizar el JAR");
         progressBar.setVisible(false);
     }
 
@@ -315,50 +348,56 @@ public class MainFrame extends JFrame {
         if (selectedJar == null) return;
 
         detectBtn.setEnabled(false);
-        statusLabel.setText("Detectando entry points...");
+        toggleBtn.setEnabled(false);
+        listModel.clear();
+        selectedPackages.clear();
+        detectedPkgs.clear();
+        statusLabel.setText("Analizando JAR...");
 
-        new SwingWorker<String, Void>() {
-            protected String doInBackground() {
+        new SwingWorker<Void, Void>() {
+            private String[] packages;
+            private Set<String> detected;
+
+            protected Void doInBackground() {
                 try {
-                    JarAnalyzer analyzer = new JarAnalyzer();
+                    cachedAnalyzer = new JarAnalyzer();
                     try (JarFile jf = new JarFile(selectedJar)) {
-                        analyzer.loadJar(jf);
+                        cachedAnalyzer.loadJar(jf);
                     }
-                    cachedAnalyzer = analyzer;
+                    packages = cachedAnalyzer.getTopLevelPackages();
+                    detected = cachedAnalyzer.detectEntryPoints();
 
-                    Set<String> detected = analyzer.detectEntryPoints();
-                    if (detected.isEmpty()) {
-                        return "Deteccion automatica no encontro @Test ni main(). Revisa los paquetes.";
-                    }
-
-                    Set<String> pkgs = new TreeSet<>();
+                    Set<String> pkgSet = new TreeSet<>();
                     for (String cls : detected) {
                         int dot = cls.lastIndexOf('.');
-                        if (dot > 0) pkgs.add(cls.substring(0, dot));
+                        if (dot > 0) pkgSet.add(cls.substring(0, cls.indexOf('.', dot + 1) > 0 ? cls.indexOf('.', dot + 1) : cls.length()));
+                        else if (dot > 0) pkgSet.add(cls.substring(0, dot));
                     }
-
-                    return String.join(", ", pkgs);
+                    detectedPkgs.addAll(pkgSet);
                 } catch (Exception e) {
-                    return "Error: " + e.getMessage();
+                    packages = new String[]{"Error: " + e.getMessage()};
+                    detected = Collections.emptySet();
                 }
+                return null;
             }
 
             protected void done() {
                 detectBtn.setEnabled(true);
-                try {
-                    String result = get();
-                    if (result.startsWith("Error")) {
-                        statusLabel.setText(result);
-                        JOptionPane.showMessageDialog(MainFrame.this, result, "Error", JOptionPane.ERROR_MESSAGE);
-                    } else if (result.startsWith("Deteccion")) {
-                        statusLabel.setText(result);
-                    } else {
-                        entryFieldSimple.setText(result);
-                        statusLabel.setText("Detectados: " + result);
-                    }
-                } catch (Exception e) {
-                    statusLabel.setText("Error en deteccion");
+                compressBtn.setEnabled(true);
+                if (packages == null || packages.length == 0) {
+                    statusLabel.setText("No se encontraron paquetes en el JAR.");
+                    return;
                 }
+                for (String pkg : packages) {
+                    listModel.addElement(pkg);
+                    if (detectedPkgs.contains(pkg)) {
+                        selectedPackages.add(pkg);
+                    }
+                }
+                toggleBtn.setEnabled(true);
+                packageList.repaint();
+                updateCount();
+                statusLabel.setText("Detectados " + detectedPkgs.size() + " paquetes con entry points. Revisa y ajusta las selecciones.");
             }
         }.execute();
     }
@@ -372,14 +411,14 @@ public class MainFrame extends JFrame {
         if (fc.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) return;
 
         File output = fc.getSelectedFile();
-        String entries = entryFieldSimple.getText().trim();
 
         compressBtn.setEnabled(false);
         selectBtn.setEnabled(false);
         detectBtn.setEnabled(false);
+        toggleBtn.setEnabled(false);
         progressBar.setVisible(true);
         progressBar.setValue(5);
-        statusLabel.setText("Analizando JAR...");
+        statusLabel.setText("Preparando...");
 
         new SwingWorker<Void, Integer>() {
             private MinimizeResult result;
@@ -389,44 +428,37 @@ public class MainFrame extends JFrame {
                 try {
                     publish(10);
                     JarAnalyzer analyzer;
-                    if (cachedAnalyzer != null) {
-                        analyzer = cachedAnalyzer;
-                    } else {
+                    if (cachedAnalyzer != null) analyzer = cachedAnalyzer;
+                    else {
                         analyzer = new JarAnalyzer();
-                        try (JarFile jf = new JarFile(selectedJar)) {
-                            analyzer.loadJar(jf);
-                        }
+                        try (JarFile jf = new JarFile(selectedJar)) { analyzer.loadJar(jf); }
                     }
 
-                    publish(40);
-                    statusLabel.setText("Construyendo grafo de dependencias...");
+                    publish(30);
+                    statusLabel.setText("Calculando entry points...");
 
                     Set<String> entryPoints = new HashSet<>();
-                    if (!entries.isEmpty()) {
-                        String[] parts = entries.split(",");
-                        for (String p : parts) {
-                            p = p.trim();
+                    if (!selectedPackages.isEmpty()) {
+                        for (String pkg : selectedPackages) {
                             for (String cls : analyzer.getAllClasses()) {
-                                if (cls.startsWith(p)) entryPoints.add(cls);
+                                if (cls.startsWith(pkg)) entryPoints.add(cls);
                             }
                         }
                     }
-
                     if (entryPoints.isEmpty()) {
                         statusLabel.setText("Usando deteccion automatica...");
                         entryPoints = analyzer.detectEntryPoints();
                     }
-
                     if (entryPoints.isEmpty()) {
-                        error = "No se detectaron entry points. Especifica los paquetes manualmente.";
+                        error = "Selecciona al menos un paquete o usa Detectar.";
                         return null;
                     }
 
-                    publish(60);
-                    statusLabel.setText("Calculando clases alcanzables (" + entryPoints.size() + " entry points)...");
+                    publish(50);
+                    statusLabel.setText("Construyendo grafo de dependencias (" + entryPoints.size() + " entry points)...");
                     Set<String> reachable = analyzer.findReachableClasses(entryPoints);
 
-                    publish(80);
+                    publish(75);
                     statusLabel.setText("Generando JAR optimizado...");
                     result = JarMinimizer.minimize(selectedJar, output, reachable,
                             analyzer.getAllClasses(), analyzer.getClassBytes());
@@ -439,25 +471,23 @@ public class MainFrame extends JFrame {
             }
 
             protected void process(List<Integer> chunks) {
-                int v = chunks.get(chunks.size() - 1);
-                progressBar.setValue(v);
+                progressBar.setValue(chunks.get(chunks.size() - 1));
             }
 
             protected void done() {
                 compressBtn.setEnabled(true);
                 selectBtn.setEnabled(true);
                 detectBtn.setEnabled(true);
+                toggleBtn.setEnabled(true);
 
                 if (error != null) {
                     statusLabel.setText("Error: " + error);
                     JOptionPane.showMessageDialog(MainFrame.this,
-                            "Ocurrio un error:\n" + error,
-                            "Error", JOptionPane.ERROR_MESSAGE);
+                            "Ocurrio un error:\n" + error, "Error", JOptionPane.ERROR_MESSAGE);
                     return;
                 }
-
                 if (result == null) {
-                    statusLabel.setText("No se pudo completar el proceso.");
+                    statusLabel.setText("No se pudo completar.");
                     return;
                 }
 
@@ -467,24 +497,16 @@ public class MainFrame extends JFrame {
                 String newSize = formatSize(selectedJar.length() - result.savedBytes);
 
                 statusLabel.setForeground(new Color(0x00, 0x80, 0x00));
-                statusLabel.setText("\u2713 Completado! Ahorraste " + saved
-                        + " (" + result.savedPercent + "%)");
+                statusLabel.setText("\u2713 Completado! Ahorraste " + saved + " (" + result.savedPercent + "%)");
 
-                String msg = String.format(
-                        "JAR original: %s\nJAR optimizado: %s\n\n" +
-                        "Clases totales: %,d\nClases eliminadas: %,d (%.0f%%)\n" +
-                        "Clases conservadas: %,d\n\n" +
-                        "Tamano original: %s\n" +
-                        "Tamano final: %s\n" +
-                        "\u2713 Ahorro total: %s (%d%%)",
-                        selectedJar.getName(), output.getName(),
-                        result.totalClasses, result.removedClasses,
-                        result.totalClasses > 0 ? (result.removedClasses * 100.0 / result.totalClasses) : 0,
-                        result.keptClasses,
-                        original, newSize, saved, result.savedPercent
-                );
-
-                JOptionPane.showMessageDialog(MainFrame.this, msg,
+                JOptionPane.showMessageDialog(MainFrame.this,
+                        "JAR original: " + selectedJar.getName() + " (" + original + ")\n" +
+                        "JAR optimizado: " + output.getName() + " (" + newSize + ")\n\n" +
+                        "Clases totales: " + String.format("%,d", result.totalClasses) + "\n" +
+                        "Clases eliminadas: " + String.format("%,d", result.removedClasses) +
+                        " (" + (result.totalClasses > 0 ? (result.removedClasses * 100 / result.totalClasses) : 0) + "%)\n" +
+                        "Clases conservadas: " + String.format("%,d", result.keptClasses) + "\n\n" +
+                        "\u2713 Ahorro: " + saved + " (" + result.savedPercent + "%)",
                         "Optimizacion completada", JOptionPane.INFORMATION_MESSAGE);
             }
         }.execute();
@@ -510,8 +532,21 @@ public class MainFrame extends JFrame {
             size /= 1024;
             unit++;
         }
-        DecimalFormat df = new DecimalFormat("#,##0.#");
-        return df.format(size) + " " + units[unit];
+        return new DecimalFormat("#,##0.#").format(size) + " " + units[unit];
+    }
+
+    class CheckboxRenderer extends JCheckBox implements ListCellRenderer<String> {
+        CheckboxRenderer() {
+            setOpaque(true);
+            setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        }
+        public Component getListCellRendererComponent(JList<? extends String> list, String value, int index, boolean isSelected, boolean cellHasFocus) {
+            setText(value);
+            setSelected(selectedPackages.contains(value));
+            setBackground(isSelected ? HIGHLIGHT : WHITE);
+            setForeground(TEXT_DARK);
+            return this;
+        }
     }
 
     public static void main(String[] args) {

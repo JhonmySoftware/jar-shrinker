@@ -14,23 +14,30 @@ import java.awt.dnd.*;
 import java.awt.event.*;
 import java.io.File;
 import java.io.InputStream;
-import java.util.jar.JarEntry;
 import java.text.DecimalFormat;
 import java.util.*;
 import java.util.List;
+import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
 public class MainFrame extends JFrame {
 
-    private static final Color ACCENT_RED = new Color(0xCC, 0x00, 0x33);
+    private static final Color ACCENT = new Color(0x00, 0x78, 0xD7);
+    private static final Color ACCENT_DARK = new Color(0x00, 0x5A, 0x9E);
+    private static final Color BG_LIGHT = new Color(0xF5, 0xF5, 0xF5);
     private static final Color WHITE = Color.WHITE;
-    private static final Color TEXT_DARK = new Color(0x33, 0x33, 0x33);
+    private static final Color TEXT_DARK = new Color(0x1A, 0x1A, 0x1A);
     private static final Color TEXT_GRAY = new Color(0x66, 0x66, 0x66);
-    private static final Color HIGHLIGHT = new Color(0xFF, 0xEB, 0xEB);
-    private static final Color GREEN = new Color(0x00, 0x80, 0x00);
-    private static final Font FONT_BUTTON = new Font("Segoe UI", Font.BOLD, 15);
+    private static final Color BORDER = new Color(0xD1, 0xD1, 0xD1);
+    private static final Color ROW_HOVER = new Color(0xE5, 0xF1, 0xFB);
+    private static final Color GREEN = new Color(0x00, 0x7A, 0x33);
+    private static final Font FONT_TITLE = new Font("Segoe UI", Font.BOLD, 22);
+    private static final Font FONT_BUTTON = new Font("Segoe UI", Font.PLAIN, 13);
+    private static final Font FONT_LIST = new Font("Segoe UI", Font.PLAIN, 13);
+    private static final Font FONT_LABEL = new Font("Segoe UI", Font.PLAIN, 12);
+    private static final Font FONT_SUB = new Font("Segoe UI", Font.PLAIN, 11);
 
-    private JLabel dropLabel, fileLabel, sizeLabel, statusLabel, countLabel;
+    private JLabel dropLabel, fileLabel, sizeLabel, statusLabel, countLabel, etaLabel;
     private JList<String> packageList;
     private DefaultListModel<String> listModel;
     private JTextField searchField;
@@ -47,13 +54,13 @@ public class MainFrame extends JFrame {
     public MainFrame() {
         super("JAR Optimizer");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
-        setSize(640, 700);
+        setSize(680, 720);
         setLocationRelativeTo(null);
         setResizable(false);
         setIconImage(createIcon());
 
         try {
-            UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception ignored) {}
 
         initUI();
@@ -63,7 +70,7 @@ public class MainFrame extends JFrame {
 
     private void initUI() {
         JPanel main = new JPanel(new BorderLayout());
-        main.setBackground(new Color(0xF5, 0xF5, 0xF5));
+        main.setBackground(BG_LIGHT);
         main.add(createHeader(), BorderLayout.NORTH);
         main.add(createBody(), BorderLayout.CENTER);
         main.add(createFooter(), BorderLayout.SOUTH);
@@ -72,33 +79,49 @@ public class MainFrame extends JFrame {
 
     private JPanel createHeader() {
         JPanel header = new JPanel(new BorderLayout());
-        header.setBackground(ACCENT_RED);
-        header.setPreferredSize(new Dimension(640, 65));
+        header.setBackground(WHITE);
+        header.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, BORDER));
+        header.setPreferredSize(new Dimension(680, 58));
 
-        JLabel logo = new JLabel("JAR OPTIMIZER", JLabel.CENTER);
-        logo.setFont(new Font("Segoe UI", Font.BOLD, 24));
-        logo.setForeground(WHITE);
-        logo.setBorder(new EmptyBorder(5, 0, 0, 0));
+        JLabel logo = new JLabel("JAR OPTIMIZER", JLabel.LEFT);
+        logo.setFont(FONT_TITLE);
+        logo.setForeground(ACCENT);
+        logo.setBorder(new EmptyBorder(12, 22, 0, 0));
 
-        JLabel sub = new JLabel("Elimina clases no utilizadas de tus JARs", JLabel.CENTER);
-        sub.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        sub.setForeground(new Color(0xFF, 0xCC, 0xCC));
+        JLabel sub = new JLabel("Reduce fat JARs eliminando clases no utilizadas", JLabel.LEFT);
+        sub.setFont(FONT_SUB);
+        sub.setForeground(TEXT_GRAY);
+        sub.setBorder(new EmptyBorder(0, 22, 10, 0));
 
         JPanel inner = new JPanel(new BorderLayout());
-        inner.setBackground(ACCENT_RED);
-        inner.add(logo, BorderLayout.CENTER);
+        inner.setBackground(WHITE);
+        inner.add(logo, BorderLayout.NORTH);
         inner.add(sub, BorderLayout.SOUTH);
+
         header.add(inner, BorderLayout.CENTER);
         return header;
     }
 
+    private JButton makeButton(String text, Color bg) {
+        JButton b = new JButton(text);
+        b.setFont(FONT_BUTTON);
+        b.setBackground(bg);
+        b.setForeground(WHITE);
+        b.setFocusPainted(false);
+        b.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(bg.darker(), 1),
+                new EmptyBorder(7, 16, 7, 16)));
+        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        return b;
+    }
+
     private JPanel createBody() {
         JPanel body = new JPanel(new GridBagLayout());
-        body.setBackground(WHITE);
-        body.setBorder(new EmptyBorder(15, 20, 5, 20));
+        body.setBackground(BG_LIGHT);
+        body.setBorder(new EmptyBorder(12, 16, 8, 16));
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.insets = new Insets(3, 0, 3, 0);
+        gbc.insets = new Insets(4, 0, 4, 0);
 
         gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 1;
         body.add(createDropZone(), gbc);
@@ -117,31 +140,25 @@ public class MainFrame extends JFrame {
 
     private JPanel createDropZone() {
         JPanel zone = new JPanel(new GridBagLayout());
-        zone.setBackground(new Color(0xFF, 0xF0, 0xF0));
+        zone.setBackground(WHITE);
         zone.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(ACCENT_RED, 2, true),
-                new EmptyBorder(20, 20, 20, 20)));
+                BorderFactory.createLineBorder(ACCENT, 1, true),
+                new EmptyBorder(16, 16, 16, 16)));
         zone.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
         dropLabel = new JLabel("Arrastra tu JAR aqu\u00ED o haz clic para seleccionarlo", JLabel.CENTER);
-        dropLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        dropLabel.setFont(FONT_LABEL);
         dropLabel.setForeground(TEXT_GRAY);
 
-        selectBtn = new JButton("Seleccionar JAR");
-        selectBtn.setFont(FONT_BUTTON);
-        selectBtn.setBackground(ACCENT_RED);
-        selectBtn.setForeground(WHITE);
-        selectBtn.setFocusPainted(false);
-        selectBtn.setBorder(new EmptyBorder(10, 25, 10, 25));
-        selectBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        selectBtn = makeButton("Seleccionar JAR", ACCENT);
         selectBtn.addActionListener(e -> selectJar());
 
         JPanel inner = new JPanel(new GridBagLayout());
-        inner.setBackground(new Color(0xFF, 0xF0, 0xF0));
+        inner.setBackground(WHITE);
         GridBagConstraints c = new GridBagConstraints();
-        c.gridx = 0; c.gridy = 0; c.insets = new Insets(0, 0, 8, 0);
+        c.gridx = 0; c.gridy = 0; c.insets = new Insets(0, 0, 6, 0);
         inner.add(dropLabel, c);
-        c.gridy = 1;
+        c.gridy = 1; c.insets = new Insets(0, 0, 0, 0);
         inner.add(selectBtn, c);
 
         zone.add(inner);
@@ -154,16 +171,17 @@ public class MainFrame extends JFrame {
     private JPanel createInfoPanel() {
         JPanel p = new JPanel(new GridBagLayout());
         p.setBackground(WHITE);
+        p.setBorder(new EmptyBorder(2, 8, 2, 8));
         GridBagConstraints c = new GridBagConstraints();
         c.fill = GridBagConstraints.HORIZONTAL;
-        c.insets = new Insets(2, 0, 2, 0);
+        c.insets = new Insets(1, 0, 1, 0);
 
         fileLabel = new JLabel(" ");
-        fileLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        fileLabel.setFont(FONT_LIST);
         fileLabel.setForeground(TEXT_DARK);
 
         sizeLabel = new JLabel(" ");
-        sizeLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        sizeLabel.setFont(FONT_LABEL);
         sizeLabel.setForeground(TEXT_GRAY);
 
         c.gridx = 0; c.gridy = 0; c.weightx = 1;
@@ -177,66 +195,48 @@ public class MainFrame extends JFrame {
         JPanel p = new JPanel(new BorderLayout(0, 5));
         p.setBackground(WHITE);
         p.setBorder(BorderFactory.createTitledBorder(
-                BorderFactory.createLineBorder(new Color(0xDD, 0xDD, 0xDD)),
-                "Proyectos detectados en el JAR",
+                BorderFactory.createLineBorder(BORDER),
+                "Proyectos detectados",
                 javax.swing.border.TitledBorder.LEFT,
                 javax.swing.border.TitledBorder.TOP,
-                new Font("Segoe UI", Font.PLAIN, 12), TEXT_DARK));
+                FONT_LABEL, TEXT_DARK));
 
-        JPanel topBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        JPanel topBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         topBar.setBackground(WHITE);
 
-        selectAllBtn = new JButton("Seleccionar todos");
-        selectAllBtn.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        selectAllBtn.setBackground(new Color(0x55, 0x55, 0x55));
-        selectAllBtn.setForeground(WHITE);
-        selectAllBtn.setFocusPainted(false);
-        selectAllBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        selectAllBtn = makeButton("Seleccionar todos", new Color(0x55, 0x55, 0x55));
         selectAllBtn.setEnabled(false);
         selectAllBtn.addActionListener(e -> selectAll());
 
-        resetBtn = new JButton("Solo necesarios");
-        resetBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        resetBtn.setBackground(ACCENT_RED);
-        resetBtn.setForeground(WHITE);
-        resetBtn.setFocusPainted(false);
-        resetBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        resetBtn = makeButton("Solo necesarios", ACCENT);
         resetBtn.setEnabled(false);
         resetBtn.addActionListener(e -> resetToAutoDetected());
 
-        clearBtn = new JButton("Deseleccionar todos");
-        clearBtn.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        clearBtn.setBackground(new Color(0x88, 0x88, 0x88));
-        clearBtn.setForeground(WHITE);
-        clearBtn.setFocusPainted(false);
-        clearBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        clearBtn = makeButton("Deseleccionar todos", new Color(0x88, 0x88, 0x88));
         clearBtn.setEnabled(false);
         clearBtn.addActionListener(e -> clearSelection());
 
         countLabel = new JLabel("Proyectos: 0/0");
-        countLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        countLabel.setFont(FONT_LABEL);
         countLabel.setForeground(TEXT_GRAY);
+        countLabel.setBorder(new EmptyBorder(0, 8, 0, 0));
 
         topBar.add(selectAllBtn);
         topBar.add(resetBtn);
         topBar.add(clearBtn);
-        topBar.add(Box.createHorizontalStrut(10));
         topBar.add(countLabel);
 
-        JPanel searchRow = new JPanel(new BorderLayout(5, 0));
+        JPanel searchRow = new JPanel(new BorderLayout(4, 0));
         searchRow.setBackground(WHITE);
-        searchRow.setBorder(new EmptyBorder(3, 0, 3, 0));
-
-        JLabel searchIcon = new JLabel("\uD83D\uDD0D");
-        searchIcon.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        searchRow.setBorder(new EmptyBorder(4, 0, 4, 0));
 
         searchField = new JTextField();
-        searchField.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        searchField.setFont(FONT_LIST);
         searchField.setForeground(TEXT_GRAY);
         searchField.setText("Buscar proyecto...");
         searchField.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(0xCC, 0xCC, 0xCC)),
-                new EmptyBorder(5, 8, 5, 8)));
+                BorderFactory.createLineBorder(BORDER),
+                new EmptyBorder(4, 8, 4, 8)));
         searchField.setEnabled(false);
         searchField.addFocusListener(new FocusAdapter() {
             public void focusGained(FocusEvent e) {
@@ -256,15 +256,15 @@ public class MainFrame extends JFrame {
             public void keyReleased(KeyEvent e) { filterPackages(); }
         });
 
-        searchRow.add(searchIcon, BorderLayout.WEST);
         searchRow.add(searchField, BorderLayout.CENTER);
 
         listModel = new DefaultListModel<>();
         packageList = new JList<>(listModel);
-        packageList.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        packageList.setFont(FONT_LIST);
         packageList.setCellRenderer(new CheckboxRenderer());
         packageList.setBackground(WHITE);
-        packageList.setFixedCellHeight(28);
+        packageList.setFixedCellHeight(30);
+        packageList.setBorder(new EmptyBorder(0, 0, 0, 0));
         packageList.addMouseListener(new MouseAdapter() {
             public void mouseClicked(MouseEvent e) {
                 int idx = packageList.locationToIndex(e.getPoint());
@@ -282,7 +282,7 @@ public class MainFrame extends JFrame {
         });
 
         JScrollPane scroll = new JScrollPane(packageList);
-        scroll.setBorder(BorderFactory.createLineBorder(new Color(0xDD, 0xDD, 0xDD)));
+        scroll.setBorder(BorderFactory.createLineBorder(BORDER));
         scroll.getVerticalScrollBar().setUnitIncrement(16);
 
         JPanel center = new JPanel(new BorderLayout(0, 3));
@@ -298,20 +298,21 @@ public class MainFrame extends JFrame {
     private JPanel createProgressPanel() {
         JPanel p = new JPanel(new GridBagLayout());
         p.setBackground(WHITE);
+        p.setBorder(new EmptyBorder(0, 0, 0, 0));
         GridBagConstraints c = new GridBagConstraints();
         c.fill = GridBagConstraints.HORIZONTAL;
-        c.insets = new Insets(3, 0, 3, 0);
+        c.insets = new Insets(2, 0, 2, 0);
 
         progressBar = new JProgressBar(0, 100);
         progressBar.setStringPainted(true);
-        progressBar.setForeground(ACCENT_RED);
-        progressBar.setBackground(new Color(0xFF, 0xE0, 0xE0));
+        progressBar.setForeground(ACCENT);
+        progressBar.setBackground(new Color(0xE5, 0xF1, 0xFB));
         progressBar.setBorder(BorderFactory.createEmptyBorder(2, 0, 2, 0));
-        progressBar.setPreferredSize(new Dimension(0, 25));
+        progressBar.setPreferredSize(new Dimension(0, 22));
         progressBar.setVisible(false);
 
         statusLabel = new JLabel(" ");
-        statusLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        statusLabel.setFont(FONT_LABEL);
         statusLabel.setForeground(TEXT_GRAY);
 
         c.gridx = 0; c.gridy = 0; c.weightx = 1;
@@ -324,15 +325,12 @@ public class MainFrame extends JFrame {
     private JPanel createFooter() {
         JPanel footer = new JPanel(new BorderLayout());
         footer.setBackground(WHITE);
-        footer.setBorder(new EmptyBorder(0, 20, 15, 20));
+        footer.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, BORDER));
+        footer.setPreferredSize(new Dimension(680, 54));
 
-        compressBtn = new JButton("COMPRIMIR Y EXPORTAR");
-        compressBtn.setFont(FONT_BUTTON);
-        compressBtn.setBackground(ACCENT_RED);
-        compressBtn.setForeground(WHITE);
-        compressBtn.setFocusPainted(false);
-        compressBtn.setBorder(new EmptyBorder(12, 30, 12, 30));
-        compressBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        compressBtn = makeButton("COMPRIMIR Y EXPORTAR", ACCENT_DARK);
+        compressBtn.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        compressBtn.setBorder(new EmptyBorder(10, 28, 10, 28));
         compressBtn.setEnabled(false);
         compressBtn.addActionListener(e -> compress());
 
@@ -587,7 +585,7 @@ public class MainFrame extends JFrame {
         clearBtn.setEnabled(false);
         progressBar.setVisible(true);
         progressBar.setIndeterminate(false);
-        progressBar.setValue(5);
+        progressBar.setValue(0);
         statusLabel.setForeground(TEXT_GRAY);
         statusLabel.setText("Preparando...");
 
@@ -597,7 +595,7 @@ public class MainFrame extends JFrame {
 
             protected Void doInBackground() {
                 try {
-                    publish(10);
+                    publish(0);
                     JarAnalyzer analyzer;
                     if (cachedAnalyzer != null) analyzer = cachedAnalyzer;
                     else {
@@ -606,8 +604,7 @@ public class MainFrame extends JFrame {
                     }
                     Set<String> allClasses = analyzer.getAllClasses();
 
-                    publish(20);
-                    publish(0);
+                    publish(5);
 
                     Set<String> entryPoints = new HashSet<>();
                     for (String ep : autoEntryPoints) {
@@ -637,34 +634,35 @@ public class MainFrame extends JFrame {
                         return null;
                     }
 
-                    publish(40);
-                    publish(0);
+                    publish(20);
+                    statusLabel.setText("Trazando dependencias desde " + entryPoints.size() + " entry points...");
                     Set<String> reachable = analyzer.findReachableClasses(entryPoints);
 
+                    publish(40);
+                    statusLabel.setText("Expandiendo a paquetes completos...");
                     Set<String> toKeep = new HashSet<>();
                     for (String cls : reachable) {
                         String pkg = cls.contains(".") ? cls.substring(0, cls.lastIndexOf('.')) : "";
                         for (String c : allClasses) {
-                            if (c.startsWith(pkg + ".") || c.equals(pkg)) {
-                                toKeep.add(c);
-                            }
+                            if (c.startsWith(pkg + ".") || c.equals(pkg)) toKeep.add(c);
                         }
                     }
 
+                    publish(50);
+                    statusLabel.setText("Incluyendo servicios SPI (META-INF/services)...");
                     try (JarFile jf = new JarFile(selectedJar)) {
-                        Enumeration<JarEntry> entries = jf.entries();
-                        while (entries.hasMoreElements()) {
-                            JarEntry entry = entries.nextElement();
-                            String en = entry.getName();
-                            if (en.startsWith("META-INF/services/") && !entry.isDirectory()) {
-                                try (InputStream in = jf.getInputStream(entry)) {
-                                    java.util.Scanner s = new java.util.Scanner(in).useDelimiter("\\A");
-                                    String content = s.hasNext() ? s.next() : "";
+                        Enumeration<JarEntry> ents = jf.entries();
+                        while (ents.hasMoreElements()) {
+                            JarEntry e = ents.nextElement();
+                            String en = e.getName();
+                            if (en.startsWith("META-INF/services/") && !e.isDirectory()) {
+                                try (InputStream in = jf.getInputStream(e)) {
+                                    java.util.Scanner sc = new java.util.Scanner(in).useDelimiter("\\A");
+                                    String content = sc.hasNext() ? sc.next() : "";
                                     for (String line : content.split("\\r?\\n")) {
                                         line = line.trim();
                                         if (!line.isEmpty() && !line.startsWith("#")) {
-                                            String implClass = line;
-                                            String pkg = implClass.contains(".") ? implClass.substring(0, implClass.lastIndexOf('.')) : "";
+                                            String pkg = line.contains(".") ? line.substring(0, line.lastIndexOf('.')) : "";
                                             for (String c : allClasses) {
                                                 if (c.startsWith(pkg + ".") || c.equals(pkg)) toKeep.add(c);
                                             }
@@ -676,9 +674,8 @@ public class MainFrame extends JFrame {
                     } catch (Exception ignored) {}
 
                     publish(70);
-                    publish(0);
-                    result = JarMinimizer.minimize(selectedJar, output, toKeep,
-                            allClasses, analyzer.getClassBytes());
+                    statusLabel.setText("Generando JAR optimizado (" + toKeep.size() + "/" + allClasses.size() + " clases)...");
+                    result = JarMinimizer.minimize(selectedJar, output, toKeep, allClasses, analyzer.getClassBytes());
 
                     publish(100);
                 } catch (Exception e) {
@@ -689,11 +686,9 @@ public class MainFrame extends JFrame {
 
             protected void process(List<Integer> chunks) {
                 int v = chunks.get(chunks.size() - 1);
-                if (v == 0) return;
                 progressBar.setValue(v);
-                if (v <= 20) statusLabel.setText(" Preparando entry points...");
-                else if (v <= 40) statusLabel.setText(" Buscando clases alcanzables...");
-                else if (v <= 70) statusLabel.setText(" Generando JAR optimizado...");
+                if (v == 0) progressBar.setString("");
+                else progressBar.setString(v + "%");
             }
 
             protected void done() {
@@ -704,6 +699,7 @@ public class MainFrame extends JFrame {
                 clearBtn.setEnabled(true);
 
                 if (error != null) {
+                    statusLabel.setForeground(ACCENT_DARK);
                     statusLabel.setText("Error: " + error);
                     JOptionPane.showMessageDialog(MainFrame.this,
                             "Ocurrio un error:\n" + error, "Error", JOptionPane.ERROR_MESSAGE);
@@ -715,6 +711,7 @@ public class MainFrame extends JFrame {
                 }
 
                 progressBar.setValue(100);
+                progressBar.setString("100%");
                 String saved = formatSize(result.savedBytes);
                 String original = formatSize(selectedJar.length());
                 String newSize = formatSize(selectedJar.length() - result.savedBytes);
@@ -738,11 +735,16 @@ public class MainFrame extends JFrame {
     private Image createIcon() {
         BufferedImage img = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = img.createGraphics();
-        g.setColor(ACCENT_RED);
-        g.fillRect(0, 0, 16, 16);
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setColor(ACCENT);
+        g.fillRoundRect(0, 0, 16, 16, 3, 3);
         g.setColor(WHITE);
-        g.setFont(new Font("Arial", Font.BOLD, 10));
-        g.drawString("JS", 2, 12);
+        g.setFont(new Font("Segoe UI", Font.BOLD, 10));
+        FontMetrics fm = g.getFontMetrics();
+        String t = "JO";
+        int x = (16 - fm.stringWidth(t)) / 2;
+        int y = (16 + fm.getAscent()) / 2 - 1;
+        g.drawString(t, x, y);
         g.dispose();
         return img;
     }
@@ -769,14 +771,14 @@ public class MainFrame extends JFrame {
     class CheckboxRenderer extends JCheckBox implements ListCellRenderer<String> {
         CheckboxRenderer() {
             setOpaque(true);
-            setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            setFont(FONT_LIST);
         }
         public Component getListCellRendererComponent(JList<? extends String> list, String value, int index, boolean isSelected, boolean cellHasFocus) {
             setText(value);
             Set<String> pkgs = projectToPackages.get(value);
             boolean checked = pkgs != null && !pkgs.isEmpty() && selectedPackages.containsAll(pkgs);
             setSelected(checked);
-            setBackground(isSelected ? HIGHLIGHT : WHITE);
+            setBackground(isSelected ? ROW_HOVER : WHITE);
             setForeground(TEXT_DARK);
             return this;
         }

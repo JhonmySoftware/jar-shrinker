@@ -33,7 +33,7 @@ public class MainFrame extends JFrame {
     private JList<String> packageList;
     private DefaultListModel<String> listModel;
     private JTextField searchField;
-    private JButton selectBtn, compressBtn, detectBtn, toggleBtn;
+    private JButton selectBtn, compressBtn, detectBtn, toggleBtn, clearBtn;
     private JProgressBar progressBar;
     private File selectedJar;
     private JarAnalyzer cachedAnalyzer;
@@ -201,12 +201,22 @@ public class MainFrame extends JFrame {
         toggleBtn.setEnabled(false);
         toggleBtn.addActionListener(e -> toggleSelection());
 
+        clearBtn = new JButton("Deseleccionar todos");
+        clearBtn.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        clearBtn.setBackground(new Color(0x88, 0x88, 0x88));
+        clearBtn.setForeground(WHITE);
+        clearBtn.setFocusPainted(false);
+        clearBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        clearBtn.setEnabled(false);
+        clearBtn.addActionListener(e -> clearSelection());
+
         countLabel = new JLabel("Seleccionados: 0");
         countLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         countLabel.setForeground(TEXT_GRAY);
 
         topBar.add(detectBtn);
         topBar.add(toggleBtn);
+        topBar.add(clearBtn);
         topBar.add(Box.createHorizontalStrut(10));
         topBar.add(countLabel);
 
@@ -360,6 +370,12 @@ public class MainFrame extends JFrame {
         updateCount();
     }
 
+    private void clearSelection() {
+        selectedPackages.clear();
+        packageList.repaint();
+        updateCount();
+    }
+
     private void setupDragDrop() {
         new DropTarget(dropLabel.getParent().getParent(), new DropTargetAdapter() {
             public void drop(DropTargetDropEvent dtde) {
@@ -402,6 +418,7 @@ public class MainFrame extends JFrame {
         compressBtn.setEnabled(false);
         detectBtn.setEnabled(true);
         toggleBtn.setEnabled(false);
+        clearBtn.setEnabled(false);
         updateCount();
         statusLabel.setText("Haz clic en \"Detectar\" para analizar el JAR");
         progressBar.setVisible(false);
@@ -457,6 +474,7 @@ public class MainFrame extends JFrame {
                 }
                 searchField.setEnabled(true);
                 toggleBtn.setEnabled(true);
+                clearBtn.setEnabled(true);
                 packageList.repaint();
                 updateCount();
                 statusLabel.setText("Pre-seleccionados " + detectedPkgs.size() + " paquetes con codigo alcanzable. Lista completa: " + allPackages.size() + " paquetes.");

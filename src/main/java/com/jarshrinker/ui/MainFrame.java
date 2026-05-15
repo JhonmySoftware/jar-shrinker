@@ -18,6 +18,7 @@ import java.util.*;
 import java.util.Arrays;
 import java.util.List;
 import java.util.jar.JarFile;
+import java.util.stream.Collectors;
 
 public class MainFrame extends JFrame {
 
@@ -37,7 +38,8 @@ public class MainFrame extends JFrame {
     private File selectedJar;
     private JarAnalyzer cachedAnalyzer;
     private final Set<String> selectedPackages = new HashSet<>();
-    private List<String> allPackages = new ArrayList<>();
+    private List<String> projectGroups = new ArrayList<>();
+    private Map<String, Set<String>> projectToPackages = new HashMap<>();
 
     public MainFrame() {
         super("JAR Optimizer");
@@ -173,7 +175,7 @@ public class MainFrame extends JFrame {
         p.setBackground(WHITE);
         p.setBorder(BorderFactory.createTitledBorder(
                 BorderFactory.createLineBorder(new Color(0xDD, 0xDD, 0xDD)),
-                "Todos los paquetes del JAR (desmarca los que NO quieras incluir)",
+                "Proyectos detectados en el JAR (desmarca los que NO quieras incluir)",
                 javax.swing.border.TitledBorder.LEFT,
                 javax.swing.border.TitledBorder.TOP,
                 new Font("Segoe UI", Font.PLAIN, 12), TEXT_DARK));
@@ -181,7 +183,7 @@ public class MainFrame extends JFrame {
         JPanel topBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
         topBar.setBackground(WHITE);
 
-        detectBtn = new JButton("Cargar paquetes");
+        detectBtn = new JButton("Cargar proyectos");
         detectBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
         detectBtn.setBackground(ACCENT_RED);
         detectBtn.setForeground(WHITE);
@@ -228,14 +230,14 @@ public class MainFrame extends JFrame {
         searchField = new JTextField();
         searchField.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         searchField.setForeground(TEXT_GRAY);
-        searchField.setText("Buscar paquete...");
+        searchField.setText("Buscar proyecto...");
         searchField.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(0xCC, 0xCC, 0xCC)),
                 new EmptyBorder(5, 8, 5, 8)));
         searchField.setEnabled(false);
         searchField.addFocusListener(new FocusAdapter() {
             public void focusGained(FocusEvent e) {
-                if (searchField.getText().equals("Buscar paquete...")) {
+                if (searchField.getText().equals("Buscar proyecto...")) {
                     searchField.setText("");
                     searchField.setForeground(TEXT_DARK);
                 }
@@ -243,7 +245,7 @@ public class MainFrame extends JFrame {
             public void focusLost(FocusEvent e) {
                 if (searchField.getText().isEmpty()) {
                     searchField.setForeground(TEXT_GRAY);
-                    searchField.setText("Buscar paquete...");
+                    searchField.setText("Buscar proyecto...");
                 }
             }
         });
@@ -264,10 +266,12 @@ public class MainFrame extends JFrame {
             public void mouseClicked(MouseEvent e) {
                 int idx = packageList.locationToIndex(e.getPoint());
                 if (idx >= 0) {
-                    String pkg = listModel.get(idx);
-                    boolean selected = selectedPackages.contains(pkg);
-                    if (selected) selectedPackages.remove(pkg);
-                    else selectedPackages.add(pkg);
+                    String group = listModel.get(idx);
+                    Set<String> pkgs = projectToPackages.get(group);
+                    if (pkgs == null || pkgs.isEmpty()) return;
+                    boolean allSelected = selectedPackages.containsAll(pkgs);
+                    if (allSelected) selectedPackages.removeAll(pkgs);
+                    else selectedPackages.addAll(pkgs);
                     packageList.repaint();
                     updateCount();
                 }
@@ -337,12 +341,17 @@ public class MainFrame extends JFrame {
     }
 
     private void updateCount() {
-        countLabel.setText("Seleccionados: " + selectedPackages.size());
+        long selectedGroups = projectToPackages.entrySet().stream()
+                .filter(e -> selectedPackages.containsAll(e.getValue()))
+                .count();
+        countLabel.setText("Proyectos seleccionados: " + selectedGroups + " / " + projectGroups.size());
     }
 
     private void selectAll() {
         selectedPackages.clear();
-        selectedPackages.addAll(allPackages);
+        for (Set<String> pkgs : projectToPackages.values()) {
+            selectedPackages.addAll(pkgs);
+        }
         packageList.repaint();
         updateCount();
     }
@@ -355,13 +364,13 @@ public class MainFrame extends JFrame {
 
     private void filterPackages() {
         String q = searchField.getText().trim().toLowerCase();
-        if (q.isEmpty() || searchField.getText().equals("Buscar paquete...")) {
+        if (q.isEmpty() || searchField.getText().equals("Buscar proyecto...")) {
             listModel.clear();
-            for (String pkg : allPackages) listModel.addElement(pkg);
+            for (String group : projectGroups) listModel.addElement(group);
         } else {
             listModel.clear();
-            for (String pkg : allPackages) {
-                if (pkg.toLowerCase().contains(q)) listModel.addElement(pkg);
+            for (String group : projectGroups) {
+                if (group.toLowerCase().contains(q)) listModel.addElement(group);
             }
         }
     }
@@ -397,10 +406,11 @@ public class MainFrame extends JFrame {
         cachedAnalyzer = null;
         selectedPackages.clear();
         listModel.clear();
-        allPackages.clear();
+        projectGroups.clear();
+        projectToPackages.clear();
         searchField.setEnabled(false);
         searchField.setForeground(TEXT_GRAY);
-        searchField.setText("Buscar paquete...");
+        searchField.setText("Buscar proyecto...");
         String size = formatSize(f.length());
         fileLabel.setText("JAR: " + f.getName());
         sizeLabel.setText("Tamano original: " + size);
@@ -420,11 +430,12 @@ public class MainFrame extends JFrame {
         selectAllBtn.setEnabled(false);
         clearBtn.setEnabled(false);
         listModel.clear();
-        allPackages.clear();
+        projectGroups.clear();
+        projectToPackages.clear();
         selectedPackages.clear();
         searchField.setEnabled(false);
         searchField.setForeground(TEXT_GRAY);
-        searchField.setText("Buscar paquete...");
+        searchField.setText("Buscar proyecto...");
         statusLabel.setText("Escaneando paquetes del JAR...");
 
         new SwingWorker<Void, Void>() {
@@ -450,17 +461,26 @@ public class MainFrame extends JFrame {
                     statusLabel.setText("No se encontraron paquetes en el JAR.");
                     return;
                 }
-                allPackages = new ArrayList<>(Arrays.asList(packages));
-                selectedPackages.addAll(allPackages);
-                for (String pkg : allPackages) {
-                    listModel.addElement(pkg);
+                Map<String, Set<String>> groups = new TreeMap<>();
+                for (String pkg : packages) {
+                    groups.computeIfAbsent(getProjectGroup(pkg), k -> new LinkedHashSet<>()).add(pkg);
+                }
+                projectGroups = new ArrayList<>(groups.keySet());
+                projectToPackages = groups;
+                selectedPackages.clear();
+                for (Set<String> pkgs : groups.values()) {
+                    selectedPackages.addAll(pkgs);
+                }
+                for (String group : projectGroups) {
+                    listModel.addElement(group);
                 }
                 searchField.setEnabled(true);
                 selectAllBtn.setEnabled(true);
                 clearBtn.setEnabled(true);
                 packageList.repaint();
                 updateCount();
-                statusLabel.setText("Cargados " + allPackages.size() + " paquetes. Desmarca los que NO necesitas y comprime.");
+                int totalPkgs = (int) groups.values().stream().mapToLong(Set::size).sum();
+                statusLabel.setText("Cargados " + projectGroups.size() + " proyectos (" + totalPkgs + " paquetes). Desmarca los que NO necesitas y comprime.");
             }
         }.execute();
     }
@@ -584,6 +604,14 @@ public class MainFrame extends JFrame {
         return img;
     }
 
+    private static String getProjectGroup(String pkg) {
+        int first = pkg.indexOf('.');
+        if (first < 0) return pkg;
+        int second = pkg.indexOf('.', first + 1);
+        if (second < 0) return pkg;
+        return pkg.substring(0, second);
+    }
+
     private String formatSize(long bytes) {
         String[] units = {"B", "KB", "MB", "GB"};
         int unit = 0;
@@ -602,7 +630,9 @@ public class MainFrame extends JFrame {
         }
         public Component getListCellRendererComponent(JList<? extends String> list, String value, int index, boolean isSelected, boolean cellHasFocus) {
             setText(value);
-            setSelected(selectedPackages.contains(value));
+            Set<String> pkgs = projectToPackages.get(value);
+            boolean checked = pkgs != null && !pkgs.isEmpty() && selectedPackages.containsAll(pkgs);
+            setSelected(checked);
             setBackground(isSelected ? HIGHLIGHT : WHITE);
             setForeground(TEXT_DARK);
             return this;

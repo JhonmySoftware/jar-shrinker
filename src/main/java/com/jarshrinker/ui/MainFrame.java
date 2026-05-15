@@ -210,7 +210,7 @@ public class MainFrame extends JFrame {
         clearBtn.setEnabled(false);
         clearBtn.addActionListener(e -> clearSelection());
 
-        countLabel = new JLabel("Seleccionados: 0");
+        countLabel = new JLabel("Proyectos: 0/0");
         countLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         countLabel.setForeground(TEXT_GRAY);
 
@@ -344,7 +344,7 @@ public class MainFrame extends JFrame {
         long selectedGroups = projectToPackages.entrySet().stream()
                 .filter(e -> selectedPackages.containsAll(e.getValue()))
                 .count();
-        countLabel.setText("Proyectos seleccionados: " + selectedGroups + " / " + projectGroups.size());
+        countLabel.setText("Proyectos: " + selectedGroups + "/" + projectGroups.size());
     }
 
     private void selectAll() {
@@ -440,6 +440,7 @@ public class MainFrame extends JFrame {
 
         new SwingWorker<Void, Void>() {
             private String[] packages;
+            private Set<String> reachablePkgs;
 
             protected Void doInBackground() {
                 try {
@@ -448,6 +449,11 @@ public class MainFrame extends JFrame {
                         cachedAnalyzer.loadJar(jf);
                     }
                     packages = cachedAnalyzer.getPackages();
+                    reachablePkgs = new HashSet<>();
+                    Set<String> entryPoints = cachedAnalyzer.detectEntryPoints();
+                    if (!entryPoints.isEmpty()) {
+                        reachablePkgs = cachedAnalyzer.getReachablePackages(entryPoints);
+                    }
                 } catch (Exception e) {
                     packages = new String[]{"Error: " + e.getMessage()};
                 }
@@ -468,8 +474,16 @@ public class MainFrame extends JFrame {
                 projectGroups = new ArrayList<>(groups.keySet());
                 projectToPackages = groups;
                 selectedPackages.clear();
-                for (Set<String> pkgs : groups.values()) {
-                    selectedPackages.addAll(pkgs);
+                Set<String> selectedProjects = new LinkedHashSet<>();
+                for (Map.Entry<String, Set<String>> e : groups.entrySet()) {
+                    boolean hasReachable = false;
+                    for (String pkg : e.getValue()) {
+                        if (reachablePkgs != null && reachablePkgs.contains(pkg)) {
+                            hasReachable = true;
+                            selectedPackages.add(pkg);
+                        }
+                    }
+                    if (hasReachable) selectedProjects.add(e.getKey());
                 }
                 for (String group : projectGroups) {
                     listModel.addElement(group);
@@ -480,7 +494,15 @@ public class MainFrame extends JFrame {
                 packageList.repaint();
                 updateCount();
                 int totalPkgs = (int) groups.values().stream().mapToLong(Set::size).sum();
-                statusLabel.setText("Cargados " + projectGroups.size() + " proyectos (" + totalPkgs + " paquetes). Desmarca los que NO necesitas y comprime.");
+                String autoMsg;
+                if (reachablePkgs != null && !reachablePkgs.isEmpty()) {
+                    autoMsg = "Auto-detectados " + selectedProjects.size() + "/" + projectGroups.size()
+                            + " proyectos necesarios (" + reachablePkgs.size() + "/" + totalPkgs + " paquetes).";
+                } else {
+                    autoMsg = "No se detectaron entry points. Seleccionados todos los proyectos manualmente.";
+                    for (Set<String> pkgs : groups.values()) selectedPackages.addAll(pkgs);
+                }
+                statusLabel.setText(autoMsg);
             }
         }.execute();
     }

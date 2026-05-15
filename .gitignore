@@ -1,6 +1,6 @@
 target/
 *.jar
-!jar-shrinker-1.0.0.jar
+!jar-shrinker-1.0.2.jar
 .classpath
 .project
 .settings/

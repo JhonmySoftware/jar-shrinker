@@ -144,52 +144,49 @@ public class JarAnalyzer {
         return result;
     }
 
-    private void detectFromClass(String className, byte[] bytes, Set<String> entryPoints, Set<String> appPackages) {
-        final boolean[] hasTestAnnotation = {false};
-        final boolean[] hasMainMethod = {false};
-        final String[] superName = {null};
-        final Set<String> ownPkg = new HashSet<>();
+    private static boolean isTestNgAnnotation(String desc) {
+        if (!desc.startsWith("Lorg/testng/annotations/")) return false;
+        String simple = desc.substring(24, desc.length() - 1);
+        return simple.equals("Test") || simple.equals("BeforeSuite") || simple.equals("AfterSuite")
+                || simple.equals("BeforeClass") || simple.equals("AfterClass")
+                || simple.equals("BeforeMethod") || simple.equals("AfterMethod")
+                || simple.equals("BeforeTest") || simple.equals("AfterTest")
+                || simple.equals("BeforeGroups") || simple.equals("AfterGroups");
+    }
 
-        ownPkg.add(className.contains(".") ? className.substring(0, className.lastIndexOf('.')) : "");
+    private void detectFromClass(String className, byte[] bytes, Set<String> entryPoints, Set<String> appPackages) {
+        final boolean[] isEntry = {false};
 
         ClassReader reader = new ClassReader(bytes);
         reader.accept(new ClassVisitor(Opcodes.ASM9) {
-            public void visit(int version, int access, String name, String signature, String sn, String[] interfaces) {
-                superName[0] = sn;
+            public void visit(int version, int access, String name, String signature, String sn, String[] ifs) {
             }
             public MethodVisitor visitMethod(int access, String mName, String desc, String signature, String[] exceptions) {
                 boolean isStatic = (access & Opcodes.ACC_STATIC) != 0;
                 boolean isPublic = (access & Opcodes.ACC_PUBLIC) != 0;
                 if (isPublic && isStatic && mName.equals("main") && desc.equals("([Ljava/lang/String;)V")) {
-                    hasMainMethod[0] = true;
+                    isEntry[0] = true;
                 }
                 return new MethodVisitor(Opcodes.ASM9) {
                     public AnnotationVisitor visitAnnotation(String aDesc, boolean visible) {
-                        if (aDesc.equals("Lorg/testng/annotations/Test;") || aDesc.equals("Lorg/junit/Test;")) {
-                            hasTestAnnotation[0] = true;
+                        if (isTestNgAnnotation(aDesc) || aDesc.equals("Lorg/junit/Test;")) {
+                            isEntry[0] = true;
                         }
-                        addPackageFromDesc(aDesc, ownPkg);
                         return null;
-                    }
-                    void addPackageFromDesc(String desc, Set<String> pkgs) {
-                        if (desc == null || desc.length() < 3) return;
-                        String internal = desc.substring(1, desc.length() - 1).replace('/', '.');
-                        int dot = internal.lastIndexOf('.');
-                        if (dot > 0) pkgs.add(internal.substring(0, dot));
                     }
                 };
             }
             public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
-                if (desc.equals("Lorg/testng/annotations/Test;") || desc.equals("Lorg/junit/Test;")) {
-                    hasTestAnnotation[0] = true;
+                if (isTestNgAnnotation(desc) || desc.equals("Lorg/junit/Test;")) {
+                    isEntry[0] = true;
                 }
                 return null;
             }
         }, ClassReader.SKIP_CODE);
 
-        if (hasTestAnnotation[0] || hasMainMethod[0]) {
+        if (isEntry[0]) {
             entryPoints.add(className);
-            appPackages.addAll(ownPkg);
+            appPackages.add(className.contains(".") ? className.substring(0, className.lastIndexOf('.')) : "");
         }
     }
 

@@ -1,0 +1,13 @@
+target/
+*.jar
+!jar-shrinker-1.0.0.jar
+.classpath
+.project
+.settings/
+.idea/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+deps/
+dependency-reduced-pom.xml

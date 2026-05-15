@@ -4,6 +4,7 @@ import java.io.*;
 import java.util.*;
 import java.util.jar.*;
 import java.util.zip.Deflater;
+import java.util.zip.ZipEntry;
 
 public class JarMinimizer {
 
@@ -44,7 +45,11 @@ public class JarMinimizer {
 
                 JarEntry newEntry = new JarEntry(name);
                 newEntry.setTime(entry.getTime());
-                newEntry.setMethod(entry.getMethod());
+                newEntry.setMethod(ZipEntry.DEFLATED);
+                if (entry.getMethod() == ZipEntry.STORED && entry.getSize() != -1) {
+                    newEntry.setSize(entry.getSize());
+                    newEntry.setCrc(entry.getCrc());
+                }
                 jos.putNextEntry(newEntry);
 
                 byte[] data;
@@ -90,6 +95,11 @@ public class JarMinimizer {
                 if (name.startsWith("META-INF/") && !name.endsWith(".class")) {
                     JarEntry newEntry = new JarEntry(name);
                     newEntry.setTime(entry.getTime());
+                    newEntry.setMethod(ZipEntry.DEFLATED);
+                    if (entry.getMethod() == ZipEntry.STORED && entry.getSize() != -1) {
+                        newEntry.setSize(entry.getSize());
+                        newEntry.setCrc(entry.getCrc());
+                    }
                     jos.putNextEntry(newEntry);
                     jos.write(readEntry(original, entry));
                     jos.closeEntry();

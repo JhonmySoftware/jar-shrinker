@@ -15,6 +15,7 @@ import java.awt.event.*;
 import java.io.File;
 import java.text.DecimalFormat;
 import java.util.*;
+import java.util.Arrays;
 import java.util.List;
 import java.util.jar.JarFile;
 
@@ -31,12 +32,14 @@ public class MainFrame extends JFrame {
     private JLabel dropLabel, fileLabel, sizeLabel, statusLabel, countLabel;
     private JList<String> packageList;
     private DefaultListModel<String> listModel;
+    private JTextField searchField;
     private JButton selectBtn, compressBtn, detectBtn, toggleBtn;
     private JProgressBar progressBar;
     private File selectedJar;
     private JarAnalyzer cachedAnalyzer;
     private final Set<String> selectedPackages = new HashSet<>();
     private final Set<String> detectedPkgs = new HashSet<>();
+    private List<String> allPackages = new ArrayList<>();
 
     public MainFrame() {
         super("JAR Optimizer");
@@ -207,6 +210,44 @@ public class MainFrame extends JFrame {
         topBar.add(Box.createHorizontalStrut(10));
         topBar.add(countLabel);
 
+        JPanel searchRow = new JPanel(new BorderLayout(5, 0));
+        searchRow.setBackground(WHITE);
+        searchRow.setBorder(new EmptyBorder(3, 0, 3, 0));
+
+        JLabel searchIcon = new JLabel("\uD83D\uDD0D");
+        searchIcon.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+
+        searchField = new JTextField();
+        searchField.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        searchField.setForeground(TEXT_GRAY);
+        searchField.setText("Buscar paquete...");
+        searchField.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(0xCC, 0xCC, 0xCC)),
+                new EmptyBorder(5, 8, 5, 8)));
+        searchField.setEnabled(false);
+        searchField.addFocusListener(new FocusAdapter() {
+            public void focusGained(FocusEvent e) {
+                if (searchField.getText().equals("Buscar paquete...")) {
+                    searchField.setText("");
+                    searchField.setForeground(TEXT_DARK);
+                }
+            }
+            public void focusLost(FocusEvent e) {
+                if (searchField.getText().isEmpty()) {
+                    searchField.setForeground(TEXT_GRAY);
+                    searchField.setText("Buscar paquete...");
+                }
+            }
+        });
+        searchField.addKeyListener(new KeyAdapter() {
+            public void keyReleased(KeyEvent e) {
+                filterPackages();
+            }
+        });
+
+        searchRow.add(searchIcon, BorderLayout.WEST);
+        searchRow.add(searchField, BorderLayout.CENTER);
+
         listModel = new DefaultListModel<>();
         packageList = new JList<>(listModel);
         packageList.setFont(new Font("Segoe UI", Font.PLAIN, 13));
@@ -231,9 +272,27 @@ public class MainFrame extends JFrame {
         scroll.setBorder(BorderFactory.createLineBorder(new Color(0xDD, 0xDD, 0xDD)));
         scroll.getVerticalScrollBar().setUnitIncrement(16);
 
+        JPanel center = new JPanel(new BorderLayout(0, 3));
+        center.setBackground(WHITE);
+        center.add(searchRow, BorderLayout.NORTH);
+        center.add(scroll, BorderLayout.CENTER);
+
         p.add(topBar, BorderLayout.NORTH);
-        p.add(scroll, BorderLayout.CENTER);
+        p.add(center, BorderLayout.CENTER);
         return p;
+    }
+
+    private void filterPackages() {
+        String q = searchField.getText().trim().toLowerCase();
+        if (q.isEmpty() || searchField.getText().equals("Buscar paquete...")) {
+            listModel.clear();
+            for (String pkg : allPackages) listModel.addElement(pkg);
+        } else {
+            listModel.clear();
+            for (String pkg : allPackages) {
+                if (pkg.toLowerCase().contains(q)) listModel.addElement(pkg);
+            }
+        }
     }
 
     private JPanel createProgressPanel() {
@@ -333,6 +392,10 @@ public class MainFrame extends JFrame {
         selectedPackages.clear();
         detectedPkgs.clear();
         listModel.clear();
+        allPackages.clear();
+        searchField.setEnabled(false);
+        searchField.setForeground(TEXT_GRAY);
+        searchField.setText("Buscar paquete...");
         String size = formatSize(f.length());
         fileLabel.setText("JAR: " + f.getName());
         sizeLabel.setText("Tama\u00F1o original: " + size);
@@ -350,8 +413,12 @@ public class MainFrame extends JFrame {
         detectBtn.setEnabled(false);
         toggleBtn.setEnabled(false);
         listModel.clear();
+        allPackages.clear();
         selectedPackages.clear();
         detectedPkgs.clear();
+        searchField.setEnabled(false);
+        searchField.setForeground(TEXT_GRAY);
+        searchField.setText("Buscar paquete...");
         statusLabel.setText("Analizando JAR...");
 
         new SwingWorker<Void, Void>() {
@@ -388,12 +455,14 @@ public class MainFrame extends JFrame {
                     statusLabel.setText("No se encontraron paquetes en el JAR.");
                     return;
                 }
-                for (String pkg : packages) {
+                allPackages = new ArrayList<>(Arrays.asList(packages));
+                for (String pkg : allPackages) {
                     listModel.addElement(pkg);
                     if (detectedPkgs.contains(pkg)) {
                         selectedPackages.add(pkg);
                     }
                 }
+                searchField.setEnabled(true);
                 toggleBtn.setEnabled(true);
                 packageList.repaint();
                 updateCount();

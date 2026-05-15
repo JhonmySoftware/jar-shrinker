@@ -22,7 +22,6 @@ import java.util.jar.JarFile;
 public class MainFrame extends JFrame {
 
     private static final Color ACCENT_RED = new Color(0xCC, 0x00, 0x33);
-    private static final Color BG_LIGHT = new Color(0xF5, 0xF5, 0xF5);
     private static final Color WHITE = Color.WHITE;
     private static final Color TEXT_DARK = new Color(0x33, 0x33, 0x33);
     private static final Color TEXT_GRAY = new Color(0x66, 0x66, 0x66);
@@ -33,12 +32,11 @@ public class MainFrame extends JFrame {
     private JList<String> packageList;
     private DefaultListModel<String> listModel;
     private JTextField searchField;
-    private JButton selectBtn, compressBtn, detectBtn, toggleBtn, clearBtn;
+    private JButton selectBtn, compressBtn, detectBtn, selectAllBtn, clearBtn;
     private JProgressBar progressBar;
     private File selectedJar;
     private JarAnalyzer cachedAnalyzer;
     private final Set<String> selectedPackages = new HashSet<>();
-    private final Set<String> detectedPkgs = new HashSet<>();
     private List<String> allPackages = new ArrayList<>();
 
     public MainFrame() {
@@ -60,7 +58,7 @@ public class MainFrame extends JFrame {
 
     private void initUI() {
         JPanel main = new JPanel(new BorderLayout());
-        main.setBackground(BG_LIGHT);
+        main.setBackground(new Color(0xF5, 0xF5, 0xF5));
         main.add(createHeader(), BorderLayout.NORTH);
         main.add(createBody(), BorderLayout.CENTER);
         main.add(createFooter(), BorderLayout.SOUTH);
@@ -77,7 +75,7 @@ public class MainFrame extends JFrame {
         logo.setForeground(WHITE);
         logo.setBorder(new EmptyBorder(5, 0, 0, 0));
 
-        JLabel sub = new JLabel("Optimizador Inteligente de JARs", JLabel.CENTER);
+        JLabel sub = new JLabel("Elimina clases no utilizadas de tus JARs", JLabel.CENTER);
         sub.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         sub.setForeground(new Color(0xFF, 0xCC, 0xCC));
 
@@ -175,7 +173,7 @@ public class MainFrame extends JFrame {
         p.setBackground(WHITE);
         p.setBorder(BorderFactory.createTitledBorder(
                 BorderFactory.createLineBorder(new Color(0xDD, 0xDD, 0xDD)),
-                "Paquetes encontrados en el JAR (marca los que quieres conservar)",
+                "Todos los paquetes del JAR (desmarca los que NO quieras incluir)",
                 javax.swing.border.TitledBorder.LEFT,
                 javax.swing.border.TitledBorder.TOP,
                 new Font("Segoe UI", Font.PLAIN, 12), TEXT_DARK));
@@ -183,7 +181,7 @@ public class MainFrame extends JFrame {
         JPanel topBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
         topBar.setBackground(WHITE);
 
-        detectBtn = new JButton("Detectar");
+        detectBtn = new JButton("Cargar paquetes");
         detectBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
         detectBtn.setBackground(ACCENT_RED);
         detectBtn.setForeground(WHITE);
@@ -192,14 +190,14 @@ public class MainFrame extends JFrame {
         detectBtn.setEnabled(false);
         detectBtn.addActionListener(e -> detectPackages());
 
-        toggleBtn = new JButton("Seleccionar detectados");
-        toggleBtn.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        toggleBtn.setBackground(new Color(0x55, 0x55, 0x55));
-        toggleBtn.setForeground(WHITE);
-        toggleBtn.setFocusPainted(false);
-        toggleBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        toggleBtn.setEnabled(false);
-        toggleBtn.addActionListener(e -> toggleSelection());
+        selectAllBtn = new JButton("Seleccionar todos");
+        selectAllBtn.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        selectAllBtn.setBackground(new Color(0x55, 0x55, 0x55));
+        selectAllBtn.setForeground(WHITE);
+        selectAllBtn.setFocusPainted(false);
+        selectAllBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        selectAllBtn.setEnabled(false);
+        selectAllBtn.addActionListener(e -> selectAll());
 
         clearBtn = new JButton("Deseleccionar todos");
         clearBtn.setFont(new Font("Segoe UI", Font.PLAIN, 12));
@@ -215,7 +213,7 @@ public class MainFrame extends JFrame {
         countLabel.setForeground(TEXT_GRAY);
 
         topBar.add(detectBtn);
-        topBar.add(toggleBtn);
+        topBar.add(selectAllBtn);
         topBar.add(clearBtn);
         topBar.add(Box.createHorizontalStrut(10));
         topBar.add(countLabel);
@@ -250,9 +248,7 @@ public class MainFrame extends JFrame {
             }
         });
         searchField.addKeyListener(new KeyAdapter() {
-            public void keyReleased(KeyEvent e) {
-                filterPackages();
-            }
+            public void keyReleased(KeyEvent e) { filterPackages(); }
         });
 
         searchRow.add(searchIcon, BorderLayout.WEST);
@@ -290,19 +286,6 @@ public class MainFrame extends JFrame {
         p.add(topBar, BorderLayout.NORTH);
         p.add(center, BorderLayout.CENTER);
         return p;
-    }
-
-    private void filterPackages() {
-        String q = searchField.getText().trim().toLowerCase();
-        if (q.isEmpty() || searchField.getText().equals("Buscar paquete...")) {
-            listModel.clear();
-            for (String pkg : allPackages) listModel.addElement(pkg);
-        } else {
-            listModel.clear();
-            for (String pkg : allPackages) {
-                if (pkg.toLowerCase().contains(q)) listModel.addElement(pkg);
-            }
-        }
     }
 
     private JPanel createProgressPanel() {
@@ -357,15 +340,9 @@ public class MainFrame extends JFrame {
         countLabel.setText("Seleccionados: " + selectedPackages.size());
     }
 
-    private void toggleSelection() {
-        boolean allSelected = selectedPackages.size() == listModel.size();
-        if (allSelected || selectedPackages.isEmpty()) {
-            selectedPackages.clear();
-            selectedPackages.addAll(detectedPkgs);
-        } else {
-            selectedPackages.clear();
-            selectedPackages.addAll(detectedPkgs);
-        }
+    private void selectAll() {
+        selectedPackages.clear();
+        selectedPackages.addAll(allPackages);
         packageList.repaint();
         updateCount();
     }
@@ -374,6 +351,19 @@ public class MainFrame extends JFrame {
         selectedPackages.clear();
         packageList.repaint();
         updateCount();
+    }
+
+    private void filterPackages() {
+        String q = searchField.getText().trim().toLowerCase();
+        if (q.isEmpty() || searchField.getText().equals("Buscar paquete...")) {
+            listModel.clear();
+            for (String pkg : allPackages) listModel.addElement(pkg);
+        } else {
+            listModel.clear();
+            for (String pkg : allPackages) {
+                if (pkg.toLowerCase().contains(q)) listModel.addElement(pkg);
+            }
+        }
     }
 
     private void setupDragDrop() {
@@ -406,7 +396,6 @@ public class MainFrame extends JFrame {
         selectedJar = f;
         cachedAnalyzer = null;
         selectedPackages.clear();
-        detectedPkgs.clear();
         listModel.clear();
         allPackages.clear();
         searchField.setEnabled(false);
@@ -414,13 +403,13 @@ public class MainFrame extends JFrame {
         searchField.setText("Buscar paquete...");
         String size = formatSize(f.length());
         fileLabel.setText("JAR: " + f.getName());
-        sizeLabel.setText("Tama\u00F1o original: " + size);
+        sizeLabel.setText("Tamano original: " + size);
         compressBtn.setEnabled(false);
         detectBtn.setEnabled(true);
-        toggleBtn.setEnabled(false);
+        selectAllBtn.setEnabled(false);
         clearBtn.setEnabled(false);
         updateCount();
-        statusLabel.setText("Haz clic en \"Detectar\" para analizar el JAR");
+        statusLabel.setText("Haz clic en \"Cargar paquetes\" para ver el contenido del JAR");
         progressBar.setVisible(false);
     }
 
@@ -428,19 +417,18 @@ public class MainFrame extends JFrame {
         if (selectedJar == null) return;
 
         detectBtn.setEnabled(false);
-        toggleBtn.setEnabled(false);
+        selectAllBtn.setEnabled(false);
+        clearBtn.setEnabled(false);
         listModel.clear();
         allPackages.clear();
         selectedPackages.clear();
-        detectedPkgs.clear();
         searchField.setEnabled(false);
         searchField.setForeground(TEXT_GRAY);
         searchField.setText("Buscar paquete...");
-        statusLabel.setText("Analizando dependencias...");
+        statusLabel.setText("Escaneando paquetes del JAR...");
 
         new SwingWorker<Void, Void>() {
             private String[] packages;
-            private Set<String> reachablePkgs = Collections.emptySet();
 
             protected Void doInBackground() {
                 try {
@@ -449,8 +437,6 @@ public class MainFrame extends JFrame {
                         cachedAnalyzer.loadJar(jf);
                     }
                     packages = cachedAnalyzer.getPackages();
-                    Set<String> entryPoints = cachedAnalyzer.detectEntryPoints();
-                    reachablePkgs = cachedAnalyzer.getReachablePackages(entryPoints);
                 } catch (Exception e) {
                     packages = new String[]{"Error: " + e.getMessage()};
                 }
@@ -465,19 +451,16 @@ public class MainFrame extends JFrame {
                     return;
                 }
                 allPackages = new ArrayList<>(Arrays.asList(packages));
+                selectedPackages.addAll(allPackages);
                 for (String pkg : allPackages) {
                     listModel.addElement(pkg);
-                    if (reachablePkgs.contains(pkg)) {
-                        selectedPackages.add(pkg);
-                        detectedPkgs.add(pkg);
-                    }
                 }
                 searchField.setEnabled(true);
-                toggleBtn.setEnabled(true);
+                selectAllBtn.setEnabled(true);
                 clearBtn.setEnabled(true);
                 packageList.repaint();
                 updateCount();
-                statusLabel.setText("Pre-seleccionados " + detectedPkgs.size() + " paquetes con codigo alcanzable. Lista completa: " + allPackages.size() + " paquetes.");
+                statusLabel.setText("Cargados " + allPackages.size() + " paquetes. Desmarca los que NO necesitas y comprime.");
             }
         }.execute();
     }
@@ -495,7 +478,8 @@ public class MainFrame extends JFrame {
         compressBtn.setEnabled(false);
         selectBtn.setEnabled(false);
         detectBtn.setEnabled(false);
-        toggleBtn.setEnabled(false);
+        selectAllBtn.setEnabled(false);
+        clearBtn.setEnabled(false);
         progressBar.setVisible(true);
         progressBar.setValue(5);
         statusLabel.setText("Preparando...");
@@ -514,32 +498,27 @@ public class MainFrame extends JFrame {
                         try (JarFile jf = new JarFile(selectedJar)) { analyzer.loadJar(jf); }
                     }
 
-                    publish(30);
-                    statusLabel.setText("Calculando entry points...");
+                    publish(20);
+                    statusLabel.setText("Usando " + selectedPackages.size() + " paquetes como entry points...");
 
                     Set<String> entryPoints = new HashSet<>();
-                    if (!selectedPackages.isEmpty()) {
-                        for (String pkg : selectedPackages) {
-                            for (String cls : analyzer.getAllClasses()) {
-                                if (cls.startsWith(pkg)) entryPoints.add(cls);
-                            }
+                    for (String pkg : selectedPackages) {
+                        for (String cls : analyzer.getAllClasses()) {
+                            if (cls.startsWith(pkg)) entryPoints.add(cls);
                         }
                     }
+
                     if (entryPoints.isEmpty()) {
-                        statusLabel.setText("Usando deteccion automatica...");
-                        entryPoints = analyzer.detectEntryPoints();
-                    }
-                    if (entryPoints.isEmpty()) {
-                        error = "Selecciona al menos un paquete o usa Detectar.";
+                        error = "Selecciona al menos un paquete.";
                         return null;
                     }
 
-                    publish(50);
-                    statusLabel.setText("Construyendo grafo de dependencias (" + entryPoints.size() + " entry points)...");
+                    publish(40);
+                    statusLabel.setText("Trazando grafo de dependencias (" + entryPoints.size() + " entry points)...");
                     Set<String> reachable = analyzer.findReachableClasses(entryPoints);
 
-                    publish(75);
-                    statusLabel.setText("Generando JAR optimizado...");
+                    publish(70);
+                    statusLabel.setText("Generando JAR optimizado (" + reachable.size() + " clases de " + analyzer.getAllClasses().size() + ")...");
                     result = JarMinimizer.minimize(selectedJar, output, reachable,
                             analyzer.getAllClasses(), analyzer.getClassBytes());
 
@@ -558,7 +537,8 @@ public class MainFrame extends JFrame {
                 compressBtn.setEnabled(true);
                 selectBtn.setEnabled(true);
                 detectBtn.setEnabled(true);
-                toggleBtn.setEnabled(true);
+                selectAllBtn.setEnabled(true);
+                clearBtn.setEnabled(true);
 
                 if (error != null) {
                     statusLabel.setText("Error: " + error);

@@ -38,6 +38,7 @@ public class MainFrame extends JFrame {
     private JarAnalyzer cachedAnalyzer;
     private final Set<String> selectedPackages = new HashSet<>();
     private final Set<String> autoDetectedPackages = new HashSet<>();
+    private final Set<String> autoEntryPoints = new HashSet<>();
     private List<String> projectGroups = new ArrayList<>();
     private Map<String, Set<String>> projectToPackages = new HashMap<>();
 
@@ -418,6 +419,7 @@ public class MainFrame extends JFrame {
         selectedJar = f;
         cachedAnalyzer = null;
         autoDetectedPackages.clear();
+        autoEntryPoints.clear();
         selectedPackages.clear();
         listModel.clear();
         projectGroups.clear();
@@ -456,6 +458,7 @@ public class MainFrame extends JFrame {
                     packages = cachedAnalyzer.getPackages();
 
                     reachablePkgs = new HashSet<>();
+                    autoEntryPoints.clear();
                     Set<String> entryPoints = cachedAnalyzer.detectEntryPoints();
                     try (JarFile jf = new JarFile(selectedJar)) {
                         java.util.jar.Manifest mf = jf.getManifest();
@@ -464,6 +467,7 @@ public class MainFrame extends JFrame {
                         }
                     }
                     if (!entryPoints.isEmpty()) {
+                        autoEntryPoints.addAll(entryPoints);
                         reachablePkgs = cachedAnalyzer.getReachablePackages(entryPoints);
                     }
                 } catch (Exception e) {
@@ -576,9 +580,25 @@ public class MainFrame extends JFrame {
                     publish(0);
 
                     Set<String> entryPoints = new HashSet<>();
+                    for (String ep : autoEntryPoints) {
+                        int dot = ep.lastIndexOf('.');
+                        String epPkg = dot > 0 ? ep.substring(0, dot) : "";
+                        if (selectedPackages.contains(epPkg)) {
+                            entryPoints.add(ep);
+                        }
+                    }
                     for (String pkg : selectedPackages) {
-                        for (String cls : analyzer.getAllClasses()) {
-                            if (cls.startsWith(pkg)) entryPoints.add(cls);
+                        boolean hasAuto = false;
+                        for (String ep : autoEntryPoints) {
+                            if (ep.startsWith(pkg + ".") || ep.equals(pkg)) {
+                                hasAuto = true;
+                                break;
+                            }
+                        }
+                        if (!hasAuto) {
+                            for (String cls : analyzer.getAllClasses()) {
+                                if (cls.startsWith(pkg)) entryPoints.add(cls);
+                            }
                         }
                     }
 

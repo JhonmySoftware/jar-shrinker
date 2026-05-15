@@ -116,18 +116,11 @@ public class JarAnalyzer {
 
     public Set<String> detectEntryPoints() {
         Set<String> entryPoints = new HashSet<>();
-        Set<String> appPackages = new HashSet<>();
 
         for (String className : allClasses) {
             byte[] bytes = classBytes.get(className);
             if (bytes == null) continue;
-            detectFromClass(className, bytes, entryPoints, appPackages);
-        }
-
-        for (String pkg : appPackages) {
-            for (String cls : allClasses) {
-                if (cls.startsWith(pkg)) entryPoints.add(cls);
-            }
+            detectFromClass(className, bytes, entryPoints);
         }
 
         return entryPoints;
@@ -154,7 +147,7 @@ public class JarAnalyzer {
                 || simple.equals("BeforeGroups") || simple.equals("AfterGroups");
     }
 
-    private void detectFromClass(String className, byte[] bytes, Set<String> entryPoints, Set<String> appPackages) {
+    private void detectFromClass(String className, byte[] bytes, Set<String> entryPoints) {
         final boolean[] isEntry = {false};
 
         ClassReader reader = new ClassReader(bytes);
@@ -186,7 +179,6 @@ public class JarAnalyzer {
 
         if (isEntry[0]) {
             entryPoints.add(className);
-            appPackages.add(className.contains(".") ? className.substring(0, className.lastIndexOf('.')) : "");
         }
     }
 

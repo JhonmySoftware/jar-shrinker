@@ -22,15 +22,15 @@ import java.util.jar.JarFile;
 
 public class MainFrame extends JFrame {
 
-    private static final Color ACCENT = new Color(0x00, 0x78, 0xD7);
-    private static final Color ACCENT_DARK = new Color(0x00, 0x5A, 0x9E);
+    private static final Color ACCENT = new Color(0xCC, 0x00, 0x33);
+    private static final Color ACCENT_DARK = new Color(0x99, 0x00, 0x26);
     private static final Color BG_LIGHT = new Color(0xF5, 0xF5, 0xF5);
     private static final Color WHITE = Color.WHITE;
-    private static final Color TEXT_DARK = new Color(0x1A, 0x1A, 0x1A);
+    private static final Color TEXT_DARK = new Color(0x33, 0x33, 0x33);
     private static final Color TEXT_GRAY = new Color(0x66, 0x66, 0x66);
-    private static final Color BORDER = new Color(0xD1, 0xD1, 0xD1);
-    private static final Color ROW_HOVER = new Color(0xE5, 0xF1, 0xFB);
-    private static final Color GREEN = new Color(0x00, 0x7A, 0x33);
+    private static final Color BORDER = new Color(0xCC, 0xCC, 0xCC);
+    private static final Color ROW_HOVER = new Color(0xFF, 0xEB, 0xEB);
+    private static final Color GREEN = new Color(0x00, 0x80, 0x00);
     private static final Font FONT_TITLE = new Font("Segoe UI", Font.BOLD, 22);
     private static final Font FONT_BUTTON = new Font("Segoe UI", Font.PLAIN, 13);
     private static final Font FONT_LIST = new Font("Segoe UI", Font.PLAIN, 13);
@@ -88,7 +88,7 @@ public class MainFrame extends JFrame {
         logo.setForeground(ACCENT);
         logo.setBorder(new EmptyBorder(12, 22, 0, 0));
 
-        JLabel sub = new JLabel("Reduce fat JARs eliminando clases no utilizadas", JLabel.LEFT);
+        JLabel sub = new JLabel("Elimina clases no utilizadas de tus JARs", JLabel.LEFT);
         sub.setFont(FONT_SUB);
         sub.setForeground(TEXT_GRAY);
         sub.setBorder(new EmptyBorder(0, 22, 10, 0));
@@ -306,7 +306,7 @@ public class MainFrame extends JFrame {
         progressBar = new JProgressBar(0, 100);
         progressBar.setStringPainted(true);
         progressBar.setForeground(ACCENT);
-        progressBar.setBackground(new Color(0xE5, 0xF1, 0xFB));
+        progressBar.setBackground(new Color(0xFF, 0xE0, 0xE0));
         progressBar.setBorder(BorderFactory.createEmptyBorder(2, 0, 2, 0));
         progressBar.setPreferredSize(new Dimension(0, 22));
         progressBar.setVisible(false);
